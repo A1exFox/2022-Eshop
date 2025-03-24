@@ -1,0 +1,4 @@
+.env
+www/composer.lock
+www/vendor/*
+!www/vendor/userAssets/

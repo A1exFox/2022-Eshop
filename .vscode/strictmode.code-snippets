@@ -1,0 +1,10 @@
+{
+    "PHP Strict Types": {
+        "prefix": "strict",
+        "body": [
+            "declare(strict_types=1);",
+            "$0"
+        ],
+        "description": "Inserting declare(strict_types=1)"
+    }
+}
