@@ -1,6 +1,6 @@
 {
     "PHP Strict Types": {
-        "prefix": "strict",
+        "prefix": "/strict",
         "body": [
             "declare(strict_types=1);",
             "$0"

@@ -1,4 +1,5 @@
 .env
+www/tmp
 www/composer.lock
 www/vendor/*
-!www/vendor/userAssets/
+!www/vendor/wfm/
