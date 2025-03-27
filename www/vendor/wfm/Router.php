@@ -26,8 +26,21 @@ class Router
         return self::$route;
     }
 
+    public static function removeQueryString(string $url): string
+    {
+        if (strlen($url) > 0) {
+            $params = explode("&", $url, 2);
+            if (false == str_contains($params[0], "=")) {
+                $params[0] = rtrim($params[0], '/');
+                return $params[0];
+            }
+        }
+        return '';
+    }
+
     public static function dispatch(string $url): void
     {
+        $url = self::removeQueryString($url);
         if (self::matchRoute($url)) {
             $route = self::$route;
             $controller = '\app\controllers\\' .
