@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace wfm;
 
+use Exception;
+
 class Router
 {
     protected static array $routes = [];
@@ -27,9 +29,24 @@ class Router
     public static function dispatch(string $url): void
     {
         if (self::matchRoute($url)) {
-            echo "OK";
+            $route = self::$route;
+            $controller = '\app\controllers\\' .
+                $route['admin_prefix'] .
+                $route['controller'] .
+                'Controller';
+            if (class_exists($controller)) {
+                $controllerObject = new $controller($route);
+                $action = self::lowerCamelCase($route['action'] . 'Action');
+                if (method_exists($controllerObject, $action)) {
+                    $controllerObject->$action();
+                } else {
+                    throw new Exception("Action $controller::$action is not found", 404);
+                }
+            } else {
+                throw new Exception("Controller $controller is not found", 404);
+            }
         } else {
-            echo "NO";
+            throw new Exception("Page is not found", 404);
         }
     }
 
@@ -48,11 +65,10 @@ class Router
                 if (!isset($route['admin_prefix'])) {
                     $route['admin_prefix'] = '';
                 } else {
-                    $route['admin_prefix'] = '\\';
+                    $route['admin_prefix'] .= '\\';
                 }
                 $route['controller'] = self::upperCamelCase($route['controller']);
-                $route['action'] = self::lowerCamelCase($route['action']);
-                debug($route);
+                self::$route = $route;
                 return true;
             }
         }
