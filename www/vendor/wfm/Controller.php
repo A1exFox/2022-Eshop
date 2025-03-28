@@ -31,9 +31,11 @@ abstract class Controller
 
     public function getView(): void
     {
-        if ($this->view == '') {
+        if ($this->view === '') {
             $this->view = $this->route['action'];
         }
+        $view = new View($this->route, $this->layout, $this->view, $this->meta);
+        $view->render($this->data);
     }
 
     public function set(array $data): void

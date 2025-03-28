@@ -30,7 +30,7 @@ class Router
     {
         if (strlen($url) > 0) {
             $params = explode("&", $url, 2);
-            if (false == str_contains($params[0], "=")) {
+            if (false === str_contains($params[0], "=")) {
                 $params[0] = rtrim($params[0], '/');
                 return $params[0];
             }
@@ -56,6 +56,7 @@ class Router
                 $action = self::lowerCamelCase($route['action'] . 'Action');
                 if (method_exists($controllerObject, $action)) {
                     $controllerObject->$action();
+                    $controllerObject->getView();
                 } else {
                     throw new Exception("Action $controller::$action is not found", 404);
                 }
