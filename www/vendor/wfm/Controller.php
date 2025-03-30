@@ -11,7 +11,7 @@ abstract class Controller
     public array $meta = ['title' => '', 'description' => '', 'keywords' => ''];
     public string|false $layout = '';
     public string|false $view = '';
-    public object $model;
+    public Model $model;
 
     public function __construct(array $route)
     {
