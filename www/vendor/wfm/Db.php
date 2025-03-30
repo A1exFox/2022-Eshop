@@ -24,6 +24,7 @@ class Db
 
         if (DEBUG === 1) {
             R::debug(true, 3);
+            // R::fancyDebug();
         }
     }
 }

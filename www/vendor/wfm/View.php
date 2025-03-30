@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace wfm;
 
 use Exception;
+use RedBeanPHP\R;
 
 class View
 {
@@ -66,5 +67,41 @@ class View
         $out .= '<meta name="description" content="' . h($this->meta['description']) . '">' . PHP_EOL;
         $out .= '<meta name="keywords" content="' . h($this->meta['keywords']) . '">';
         return $out;
+    }
+
+    public function getDbLogs(): void
+    {
+        if (DEBUG !== 1) {
+            return;
+        }
+
+        /** @disregard Undefined method 'getLogger'.intelephense(P1013) */
+        $logs = R::getDatabaseAdapter()
+            ->getDatabase()
+            ->getLogger();
+
+        $logs = array_merge(
+            $logs->grep('SELECT'),
+            $logs->grep('INSERT'),
+            $logs->grep('UPDATE'),
+            $logs->grep('DELETE')
+        );
+        debug($logs);
+    }
+
+    public function getPart($file, array|null $data = null)
+    {
+        if (is_array($data)) {
+            extract($data);
+        }
+
+        $file = APP . "/views/$file.php";
+
+        if (!is_file($file)) {
+            echo "File $file is not found...";
+            return;
+        }
+
+        require $file;
     }
 }
