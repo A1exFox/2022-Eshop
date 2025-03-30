@@ -8,5 +8,10 @@ use wfm\Controller;
 
 class MainController extends Controller
 {
-    public function indexAction() {}
+    public function indexAction()
+    {
+        $this->setMeta('Главная страница', 'Description...', 'keywords...');
+        $names = ['John', 'Dave', 'Katy'];
+        $this->set(compact('names'));
+    }
 }
