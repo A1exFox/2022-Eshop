@@ -272,9 +272,9 @@ CREATE TABLE `slider` (
 LOCK TABLES `slider` WRITE;
 /*!40000 ALTER TABLE `slider` DISABLE KEYS */;
 INSERT INTO `slider` VALUES
-(1,'/public/uploads/images/slider/1.jpg'),
-(2,'/public/uploads/images/slider/2.jpg'),
-(3,'/public/uploads/images/slider/3.jpg');
+(1,'/uploads/images/slider/1.jpg'),
+(2,'/uploads/images/slider/2.jpg'),
+(3,'/uploads/images/slider/3.jpg');
 /*!40000 ALTER TABLE `slider` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -287,4 +287,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*M!100616 SET NOTE_VERBOSITY=@OLD_NOTE_VERBOSITY */;
 
--- Dump completed on 2025-04-03 12:40:18
+-- Dump completed on 2025-04-04 15:38:33

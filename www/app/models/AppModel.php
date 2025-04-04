@@ -4,6 +4,6 @@ declare(strict_types=1);
 
 namespace app\models;
 
-use RedBeanPHP\R;
+use wfm\Model;
 
-class Main extends AppModel {}
+class AppModel extends Model {}
