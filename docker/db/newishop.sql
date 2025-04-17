@@ -174,14 +174,14 @@ CREATE TABLE `product` (
 LOCK TABLES `product` WRITE;
 /*!40000 ALTER TABLE `product` DISABLE KEYS */;
 INSERT INTO `product` VALUES
-(1,7,'canon-eos-5d',10,12,1,1,'uploads/no_image.jpg',0),
-(2,4,'apple-cinema-30',20,0,1,1,'uploads/no_image.jpg',0),
-(3,4,'imac',25,0,1,1,'uploads/no_image.jpg',0),
-(4,6,'iphone',10,0,1,1,'uploads/no_image.jpg',0),
-(5,5,'cifrovoj-tovar',5,0,1,1,'uploads/no_image.jpg',1),
+(1,7,'canon-eos-5d',10,12,1,1,'uploads/2021/11/12/canon_eos_5d_1.jpg',0),
+(2,4,'apple-cinema-30',20,0,1,1,'uploads/2021/11/12/apple_cinema_30.jpg',0),
+(3,4,'imac',25,0,1,1,'uploads/2021/11/12/imac_1.jpg',0),
+(4,6,'iphone',10,0,1,1,'uploads/2021/11/12/iphone_1.jpg',0),
+(5,5,'cifrovoj-tovar',5,0,1,1,'uploads/2021/11/12/hp_1.jpg',1),
 (6,1,'cifrovoj-tovar-2',21,0,1,0,'uploads/no_image.jpg',1),
 (7,1,'kompyuter-2',22,0,1,0,'uploads/no_image.jpg',0),
-(8,1,'kompyuter-3',23,0,1,0,'uploads/no_image.jpg',0),
+(8,1,'kompyuter-3',23,0,1,1,'uploads/no_image.jpg',0),
 (9,1,'kompyuter-4',24,0,1,0,'uploads/no_image.jpg',0),
 (10,1,'kompyuter-5',25,0,1,0,'uploads/no_image.jpg',0),
 (11,1,'kompyuter-6',26,0,1,0,'uploads/no_image.jpg',0),
@@ -272,9 +272,9 @@ CREATE TABLE `slider` (
 LOCK TABLES `slider` WRITE;
 /*!40000 ALTER TABLE `slider` DISABLE KEYS */;
 INSERT INTO `slider` VALUES
-(1,'/uploads/images/slider/1.jpg'),
-(2,'/uploads/images/slider/2.jpg'),
-(3,'/uploads/images/slider/3.jpg');
+(1,'/uploads/slider/1.jpg'),
+(2,'/uploads/slider/2.jpg'),
+(3,'/uploads/slider/3.jpg');
 /*!40000 ALTER TABLE `slider` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -287,4 +287,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*M!100616 SET NOTE_VERBOSITY=@OLD_NOTE_VERBOSITY */;
 
--- Dump completed on 2025-04-04 15:38:33
+-- Dump completed on 2025-04-17 12:18:05
