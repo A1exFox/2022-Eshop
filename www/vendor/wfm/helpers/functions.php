@@ -33,3 +33,15 @@ function redirect(string $http = ''): void
     header("Location: " . PATH);
     die;
 }
+
+
+function base_url(): string
+{
+    $lang = \wfm\App::$app->getProperty('lang');
+    if ($lang === null) {
+        $lang = '';
+    } else {
+        $lang = "$lang/";
+    }
+    return sprintf('%s/%s', PATH, $lang);
+}
