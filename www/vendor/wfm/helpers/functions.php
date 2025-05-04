@@ -70,3 +70,13 @@ function post(string $key, string $type = 's'): mixed
         return trim($$param);
     }
 }
+
+function __(string $key): void
+{
+    echo \wfm\Language::get($key);
+}
+
+function ___(string $key): string
+{
+    return \wfm\Language::get($key);
+}

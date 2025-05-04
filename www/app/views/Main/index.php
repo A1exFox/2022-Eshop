@@ -51,7 +51,7 @@
         <div class="container">
             <div class="row">
                 <div class="col-12">
-                    <h3 class="section-title">Рекомендуемые товары</h3>
+                    <h3 class="section-title"><?= ___('main_index_featured_products') ?></h3>
                 </div>
 
                 <?php $this->getPart('parts/products_loop', compact(['products'])); ?>

@@ -20,6 +20,11 @@ class MainController extends AppController
 
 
         $this->set(compact(['slides', 'products']));
-        $this->setMeta("Main page", 'description', 'keywords');
+
+        $meta_title = ___('main_index_meta_title');
+        $meta_description = ___('main_index_meta_description');
+        $meta_keywords = ___('main_index_meta_keywords');
+
+        $this->setMeta($meta_title, $meta_description, $meta_keywords);
     }
 }

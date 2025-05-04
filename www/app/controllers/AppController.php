@@ -21,5 +21,7 @@ class AppController extends Controller
 
         App::$app->setProperty('languages', $languages);
         App::$app->setProperty('language', $language);
+
+        \wfm\Language::load($language['code'], $this->route);
     }
 }
