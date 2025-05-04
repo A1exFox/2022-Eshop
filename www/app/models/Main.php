@@ -8,7 +8,7 @@ use RedBeanPHP\R;
 
 class Main extends AppModel
 {
-    public function get_hits(int $lang, int $limit): array
+    public function get_hits(array $lang, int $limit): array
     {
         return R::getAll("SELECT p.*, pd.* 
             FROM product p
@@ -17,6 +17,6 @@ class Main extends AppModel
             WHERE p.status = 1
                 AND p.hit = 1
                 AND pd.language_id = ?
-            LIMIT $limit", [$lang]);
+            LIMIT $limit", [$lang['id']]);
     }
 }

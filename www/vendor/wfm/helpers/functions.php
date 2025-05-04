@@ -34,7 +34,6 @@ function redirect(string $http = ''): void
     die;
 }
 
-
 function base_url(): string
 {
     $lang = \wfm\App::$app->getProperty('lang');
@@ -44,4 +43,30 @@ function base_url(): string
         $lang = "$lang/";
     }
     return sprintf('%s/%s', PATH, $lang);
+}
+
+function get(string $key, string $type = 'i'): mixed
+{
+    $param = $key;
+    $$param = $_GET[$param] ?? '';
+    if ($type === 'i') {
+        return (int) $$param;
+    } elseif ($type === 'f') {
+        return (float) $$param;
+    } else {
+        return trim($$param);
+    }
+}
+
+function post(string $key, string $type = 's'): mixed
+{
+    $param = $key;
+    $$param = $_POST[$param] ?? '';
+    if ($type === 'i') {
+        return (int)$$param;
+    } elseif ($type === 'f') {
+        return (float)$$param;
+    } else {
+        return trim($$param);
+    }
 }
