@@ -52,4 +52,11 @@ abstract class Controller
         $this->meta['description'] = $description;
         $this->meta['keywords'] = $keywords;
     }
+
+    public function isAjax(): bool
+    {
+        $isAjax = isset($_SERVER['HTTP_X_REQUESTED_WITH'])
+            && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest';
+        return $isAjax;
+    }
 }
