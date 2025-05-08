@@ -59,4 +59,12 @@ abstract class Controller
             && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest';
         return $isAjax;
     }
+
+    public function loadView(string $view, array $vars = []): void
+    {
+        extract($vars);
+        $prefix = str_replace('\\', '/', $this->route['admin_prefix']);
+        require sprintf('%s/views/%s%s/%s.php', APP, $prefix, $this->route['controller'], $view);
+        die;
+    }
 }

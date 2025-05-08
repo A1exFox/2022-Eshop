@@ -27,7 +27,7 @@ class CartController extends AppController
         $this->model->add_to_cart($product, $qty);
 
         if ($this->isAjax()) {
-            debug($_SESSION['cart'], true);
+            $this->loadView('cart_modal');
         }
         redirect();
     }
