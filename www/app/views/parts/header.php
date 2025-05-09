@@ -43,9 +43,11 @@
                         </form>
                         <a href="#" class="open-search"><i class="fas fa-search"></i></a>
 
-                        <a href="#" class="relative" data-bs-toggle="modal" data-bs-target="#cart-modal">
+                        <a href="#" class="relative" id="get-cart" data-bs-toggle="modal" data-bs-target="#cart-modal">
                             <i class="fas fa-shopping-cart"></i>
-                            <span class="badge bg-danger rounded-pill count-items">0</span>
+                            <span class="badge bg-danger rounded-pill count-items">
+                                <?= $_SESSION['cart.qty'] ?? 0 ?>
+                            </span>
                         </a>
 
 
