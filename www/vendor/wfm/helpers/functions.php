@@ -80,3 +80,17 @@ function ___(string $key): string
 {
     return \wfm\Language::get($key);
 }
+
+
+function get_cart_icon(string $id): string
+{
+    $icon = '<i class="fas fa-shopping-cart"></i>';
+
+    if (empty($_SESSION['cart'])) {
+        return $icon;
+    }
+    if (array_key_exists($id, $_SESSION['cart'])) {
+        $icon = '<i class="fas fa-luggage-cart"></i>';
+    }
+    return $icon;
+}

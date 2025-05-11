@@ -26,6 +26,7 @@ class LanguageController extends AppController
                         array_unshift($url_parts, $lang);
                     }
                 }
+                \app\models\Cart::translate_cart(\wfm\App::$app->getProperty('languages')[$lang]);
                 $url = PATH . '/' . implode('/', $url_parts);
                 redirect($url);
             }

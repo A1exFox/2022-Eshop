@@ -71,6 +71,10 @@ $(function () {
             data: { id, qty },
             success: function (res) {
                 showCart(res);
+                console.log($this.find('i'))
+                $this.find('i')
+                    .removeClass('fa-shopping-cart')
+                    .addClass('fa-luggage-cart')
             },
             error: function () {
                 alert('Error')

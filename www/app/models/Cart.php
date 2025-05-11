@@ -66,4 +66,24 @@ class Cart extends AppModel
         $_SESSION['cart.sum'] -= $sum_minus;
         unset($_SESSION['cart'][$id]);
     }
+
+    public static function translate_cart(array $lang)
+    {
+        if (empty($_SESSION['cart'])) {
+            return;
+        }
+        $ids = implode(',', array_keys($_SESSION['cart']));
+        $sql = "SELECT p.id, pd.title
+            FROM product p
+            JOIN product_description pd
+                ON p.id = pd.product_id
+            WHERE p.id 
+                    IN ($ids)
+                AND pd.language_id = ?";
+        $products = \RedBeanPHP\R::getAll($sql, [$lang['id']]);
+
+        foreach ($products as $product) {
+            $_SESSION['cart'][$product['id']]['title'] = $product['title'];
+        }
+    }
 }
