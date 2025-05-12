@@ -252,6 +252,33 @@ INSERT INTO `product_description` VALUES
 UNLOCK TABLES;
 
 --
+-- Table structure for table `product_gallery`
+--
+
+DROP TABLE IF EXISTS `product_gallery`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `product_gallery` (
+  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
+  `product_id` int(11) unsigned NOT NULL,
+  `img` varchar(255) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `product_gallery`
+--
+
+LOCK TABLES `product_gallery` WRITE;
+/*!40000 ALTER TABLE `product_gallery` DISABLE KEYS */;
+INSERT INTO `product_gallery` VALUES
+(1,2,'/uploads/images/1.jpg'),
+(2,2,'/uploads/images/2.jpg');
+/*!40000 ALTER TABLE `product_gallery` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `slider`
 --
 
@@ -287,4 +314,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*M!100616 SET NOTE_VERBOSITY=@OLD_NOTE_VERBOSITY */;
 
--- Dump completed on 2025-04-17 12:18:05
+-- Dump completed on 2025-05-12  8:58:50
