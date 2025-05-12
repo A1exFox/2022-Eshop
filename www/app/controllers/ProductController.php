@@ -20,9 +20,10 @@ class ProductController extends AppController
             throw new Exception(sprintf("Товар по запросу \"%s\" не найден", $this->route['slug']));
         }
 
+        $breadcrumbs = \app\models\Breadcrumbs::getBreadcrumbs($product['category_id'], $product['title']);
         $gallery = $this->model->get_gallery($product['id']);
 
         $this->setMeta((string)$product['title'], (string)$product['description'], (string)$product['keywords']);
-        $this->set(compact(['product', 'gallery']));
+        $this->set(compact(['product', 'gallery', 'breadcrumbs']));
     }
 }

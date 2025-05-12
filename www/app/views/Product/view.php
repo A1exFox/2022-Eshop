@@ -4,14 +4,13 @@
  * @var \wfm\View $this
  * @var array $product
  * @var array $gallery
+ * @var string $breadcrumbs
  */
 ?>
 <div class="container">
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb bg-light p-2">
-            <li class="breadcrumb-item"><a href="index.html"><i class="fas fa-home"></i></a></li>
-            <li class="breadcrumb-item"><a href="#">Ноутбуки</a></li>
-            <li class="breadcrumb-item active" aria-current="page">MacBook</li>
+            <?= $breadcrumbs ?>
         </ol>
     </nav>
 </div>

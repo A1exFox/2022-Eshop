@@ -23,5 +23,14 @@ class AppController extends Controller
         App::$app->setProperty('language', $language);
 
         \wfm\Language::load($language['code'], $this->route);
+
+        $sql = "SELECT c.*, cd.*
+            FROM category c
+            JOIN category_description cd
+            ON c.id = cd.category_id
+            WHERE cd.language_id = ?";
+
+        $categories = \RedBeanPHP\R::getAssoc($sql, [$language['id']]);
+        App::$app->setProperty(sprintf('categories_%s', $language['code']), $categories);
     }
 }

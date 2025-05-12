@@ -46,13 +46,7 @@ class Menu
             return;
         }
 
-        $sql = "SELECT c.*, cd.*
-            FROM category c
-            JOIN category_description cd
-            ON c.id = cd.category_id
-            WHERE cd.language_id = ?";
-
-        $this->data = \RedBeanPHP\R::getAssoc($sql, [$this->language['id']]);
+        $this->data = \wfm\App::$app->getProperty(sprintf('categories_%s', $this->language['code']));
         $this->tree = $this->getTree();
         $this->menuHtml = $this->getMenuHtml($this->tree);
 
