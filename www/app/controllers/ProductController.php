@@ -17,7 +17,9 @@ class ProductController extends AppController
         $product = $this->model->get_product($this->route['slug'], $lang);
 
         if (is_null($product) || empty($product)) {
-            throw new Exception(sprintf("Товар по запросу \"%s\" не найден", $this->route['slug']));
+            // throw new Exception(sprintf("Товар по запросу \"%s\" не найден", $this->route['slug']));
+            $this->error_404();
+            return;
         }
 
         $breadcrumbs = \app\models\Breadcrumbs::getBreadcrumbs($product['category_id'], $product['title']);

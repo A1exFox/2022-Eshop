@@ -67,4 +67,12 @@ abstract class Controller
         require sprintf('%s/views/%s%s/%s.php', APP, $prefix, $this->route['controller'], $view);
         die;
     }
+
+    public function error_404(string $folder = 'Error', string $view = '404', int $response = 404)
+    {
+        http_response_code($response);
+        $this->setMeta(___('tpl_error_404'));
+        $this->route['controller'] = $folder;
+        $this->view = $view;
+    }
 }

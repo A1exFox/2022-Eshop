@@ -58,8 +58,13 @@
                                 <i class="far fa-user"></i>
                             </a>
                             <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" href="#"><?= ___('tpl_login') ?></a></li>
-                                <li><a class="dropdown-item" href="#"><?= ___('tpl_signup') ?></a></li>
+                                <?php if (empty($_SESSION['user'])): ?>
+                                    <li><a class="dropdown-item" href="#"><?= ___('tpl_login') ?></a></li>
+                                    <li><a class="dropdown-item" href="#"><?= ___('tpl_signup') ?></a></li>
+                                <?php else: ?>
+                                    <li><a class="dropdown-item" href="#"><?= ___('tpl_cabinet') ?></a></li>
+                                    <li><a class="dropdown-item" href="#"><?= ___('tpl_logout') ?></a></li>
+                                <?php endif; ?>
                             </ul>
                         </div>
 
