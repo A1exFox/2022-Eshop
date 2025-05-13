@@ -27,7 +27,9 @@ class Breadcrumbs extends AppModel
             }
         }
 
-        $breadcrumbs .= "<li class=\"breadcrumb-item active\">" . $name . "</li>";
+        if (!empty($name)) {
+            $breadcrumbs .= "<li class=\"breadcrumb-item active\">" . $name . "</li>";
+        }
         return $breadcrumbs;
     }
 
