@@ -38,6 +38,17 @@ class Category extends AppModel
 
     public function get_products(string $ids, array $lang, int $start, int $perpage): array
     {
+        $sort_values = [
+            'title_asc' => 'ORDER BY title ASC',
+            'title_desc' => 'ORDER BY title DESC',
+            'price_asc' => 'ORDER BY price ASC',
+            'price_desc' => 'ORDER BY price DESC',
+        ];
+        $order_by = '';
+        if (isset($_GET['sort']) && array_key_exists($_GET['sort'], $sort_values)) {
+            $order_by = $sort_values[$_GET['sort']];
+        }
+
         $sql = "SELECT p.*, pd.*
             FROM product p
             JOIN product_description pd
@@ -45,6 +56,7 @@ class Category extends AppModel
             WHERE p.status = 1
                 AND p.category_id IN ($ids)
                 AND pd.language_id = ?
+                $order_by
             LIMIT $start, $perpage";
 
         $query = R::getAll($sql, [$lang['id']]);
@@ -54,6 +66,6 @@ class Category extends AppModel
 
     public function get_count_products(string $ids): int
     {
-        return R::count('product', "category_id IN ($ids)");
+        return R::count('product', "category_id IN ($ids) AND status = 1");
     }
 }

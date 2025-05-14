@@ -83,6 +83,14 @@ $(function () {
     })
     // End Cart
 
+    $('#input-sort').on('change', function () {
+        let sortOption = ''
+        if ($(this).val() != 'sort=default') {
+            sortOption = '?' + $(this).val()
+        }
+        window.location = PATH + window.location.pathname + sortOption
+    })
+
     $('.open-search').click(function (e) {
         e.preventDefault();
         $('#search').addClass('active');

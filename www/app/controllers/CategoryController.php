@@ -24,7 +24,7 @@ class CategoryController extends AppController
         $breadcrumbs = Breadcrumbs::getBreadcrumbs($category['id']);
         $ids = $this->model->getIds($category['id']) . $category['id'];
 
-        $page = abs(get('page')) ?: 1;
+        $page = get('page');
         $perpage = App::$app->getProperty('pagination');
         $total = $this->model->get_count_products($ids);
         $pagination = new Pagination($page, $perpage, $total);
