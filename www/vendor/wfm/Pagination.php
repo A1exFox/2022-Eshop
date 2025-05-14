@@ -58,7 +58,7 @@ class Pagination
         }
         if ($curpage < ($this->countPages - 1)) {
             $next2 = $curpage + 2;
-            $page2right = sprintf($format, '', $this->getCurrentPage($next2), "$next2");
+            $page2right = sprintf($format, '', $this->getLink($next2), "$next2");
         }
         if ($curpage < ($this->countPages - 2)) {
             $endpage = sprintf($format, '', $this->getLink($this->countPages), "&raquo;");
@@ -140,6 +140,11 @@ class Pagination
         }
 
         return $uri;
+    }
+
+    public function __toString()
+    {
+        return $this->getHtml();
     }
 
     public function getCountPages(): int
