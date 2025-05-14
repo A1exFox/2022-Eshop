@@ -39,9 +39,6 @@ return [
     'tpl_signup_name_input' => 'Name',
     'tpl_signup_address_input' => 'Address',
 
-    'tpl_search_title' => 'Search',
-    'tpl_search_query' => 'Search by: ',
-
     'tpl_wishlist_add_success' => 'Product added to favorites',
     'tpl_wishlist_add_error' => 'Error adding product to favorites',
     'tpl_wishlist_delete_success' => 'Product removed from favorites',
