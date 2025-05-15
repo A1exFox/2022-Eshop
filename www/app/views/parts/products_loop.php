@@ -26,7 +26,11 @@
                             data-id="<?= $product['id'] ?>">
                             <?= get_cart_icon($product['id']) ?>
                         </a>
-                        <a href="#"><i class="far fa-heart"></i></a>
+                        <a class="add-to-wishlist"
+                            href="wishlist/add?id=<?= $product['id'] ?>"
+                            data-id="<?= $product['id'] ?>">
+                            <i class="far fa-heart"></i>
+                        </a>
                     </div>
                 </div>
             </div>
