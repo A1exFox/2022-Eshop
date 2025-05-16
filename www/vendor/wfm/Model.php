@@ -15,4 +15,13 @@ abstract class Model
     {
         Db::getInstance();
     }
+
+    public function load(array $data)
+    {
+        foreach (array_keys($this->attributes) as $name) {
+            if (isset($data[$name])) {
+                $this->attributes[$name] = $data[$name];
+            }
+        }
+    }
 }

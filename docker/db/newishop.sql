@@ -154,7 +154,9 @@ DROP TABLE IF EXISTS `page`;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `page` (
   `id` int(10) unsigned NOT NULL,
-  `slug` varchar(255) DEFAULT NULL
+  `slug` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `slug` (`slug`(191))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -185,7 +187,8 @@ CREATE TABLE `page_description` (
   `title` varchar(255) NOT NULL,
   `content` text NOT NULL,
   `keywords` varchar(255) DEFAULT NULL,
-  `description` varchar(255) DEFAULT NULL
+  `description` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`page_id`,`language_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -366,6 +369,34 @@ INSERT INTO `slider` VALUES
 (3,'/uploads/slider/3.jpg');
 /*!40000 ALTER TABLE `slider` ENABLE KEYS */;
 UNLOCK TABLES;
+
+--
+-- Table structure for table `user`
+--
+
+DROP TABLE IF EXISTS `user`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `user` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `email` varchar(50) NOT NULL,
+  `password` varchar(255) NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `address` varchar(255) NOT NULL,
+  `role` enum('user','admin') NOT NULL DEFAULT 'user',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `email` (`email`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `user`
+--
+
+LOCK TABLES `user` WRITE;
+/*!40000 ALTER TABLE `user` DISABLE KEYS */;
+/*!40000 ALTER TABLE `user` ENABLE KEYS */;
+UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
@@ -376,4 +407,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*M!100616 SET NOTE_VERBOSITY=@OLD_NOTE_VERBOSITY */;
 
--- Dump completed on 2025-05-16 10:36:43
+-- Dump completed on 2025-05-16 17:43:10
