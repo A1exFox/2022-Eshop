@@ -8,12 +8,17 @@
             <div class="row">
                 <div class="col-md-3 col-6">
                     <h4><?= ___('tpl_information') ?></h4>
-                    <ul class="list-unstyled">
-                        <li><a href="#">Главная</a></li>
-                        <li><a href="#">О магазине</a></li>
-                        <li><a href="#">Оплата и доставка</a></li>
-                        <li><a href="#">Контакты</a></li>
-                    </ul>
+                    <?php
+                    $prepend = sprintf(
+                        '<li><a href="%s">%s</a></li>',
+                        base_url(),
+                        ___('tpl_home_link')
+                    );
+                    new \app\widgets\page\Page([
+                        'cache' => 0,
+                        'class' => 'list-unstyled',
+                        'prepend' => $prepend,
+                    ]) ?>
                 </div>
 
                 <div class="col-md-3 col-6">
