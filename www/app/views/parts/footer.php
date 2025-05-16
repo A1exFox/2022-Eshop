@@ -1,5 +1,7 @@
 <?php
 
+use app\widgets\page\Page;
+
 /** @var wfm\View $this */
 ?>
 <footer>
@@ -14,7 +16,7 @@
                         base_url(),
                         ___('tpl_home_link')
                     );
-                    new \app\widgets\page\Page([
+                    new Page([
                         'cache' => 0,
                         'class' => 'list-unstyled',
                         'prepend' => $prepend,
