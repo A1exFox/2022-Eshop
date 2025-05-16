@@ -50,4 +50,24 @@ class Wishlist extends AppModel
         }
         return [];
     }
+
+    public function get_wishlist_products(array $lang): array
+    {
+        $wishlist = self::get_wishlist_ids();
+        if (count($wishlist) > 0) {
+            $wishlist = implode(',', $wishlist);
+            $sql = "SELECT p.*, pd.*
+                FROM product p
+                JOIN product_description pd
+                    ON p.id = pd.product_id
+                WHERE p.status = 1
+                    AND p.id IN ($wishlist)
+                    AND pd.language_id = ?
+                    LIMIT 6";
+
+            $all = R::getAll($sql, [$lang['id']]);
+            return $all;
+        }
+        return [];
+    }
 }

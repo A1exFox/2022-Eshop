@@ -32,5 +32,7 @@ class AppController extends Controller
 
         $categories = \RedBeanPHP\R::getAssoc($sql, [$language['id']]);
         App::$app->setProperty(sprintf('categories_%s', $language['code']), $categories);
+
+        App::$app->setProperty('wishlist', \app\models\Wishlist::get_wishlist_ids());
     }
 }

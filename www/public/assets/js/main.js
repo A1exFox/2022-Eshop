@@ -145,7 +145,17 @@ $(function () {
             data: { id },
             success: function (res) {
                 res = JSON.parse(res)
-                console.log(res);
+                $this.removeClass('add-to-wishlist')
+                    .addClass('delete-from-wishlist')
+
+                Swal.fire(
+                    res.text,
+                    '',
+                    res.result
+                )
+
+                $this.find('i').removeClass('far fa-heart')
+                    .addClass('fas fa-hand-holding-heart')
             },
             error: function () {
                 alert('Error')

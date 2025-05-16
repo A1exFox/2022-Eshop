@@ -4,10 +4,20 @@ declare(strict_types=1);
 
 namespace app\controllers;
 
+use wfm\App;
+
 /** @property \app\models\Wishlist $model */
 
 class WishlistController extends AppController
 {
+
+    public function indexAction()
+    {
+        $lang = App::$app->getProperty('language');
+        $products = $this->model->get_wishlist_products($lang);
+        $this->setMeta(___('wishlist_index_title'));
+        $this->set(compact('products'));
+    }
 
     public function addAction()
     {
