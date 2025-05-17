@@ -94,3 +94,13 @@ function get_cart_icon(string $id): string
     }
     return $icon;
 }
+
+function get_field_value(string $name): string
+{
+    if (isset($_SESSION['form_data'][$name])) {
+        $data = h($_SESSION['form_data'][$name]);
+    } else {
+        $data = '';
+    }
+    return $data;
+}
