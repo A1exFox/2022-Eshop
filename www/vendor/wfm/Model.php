@@ -30,8 +30,9 @@ abstract class Model
 
     public function validate(array $data): bool
     {
+        $lang = App::$app->getProperty('language')['code'];
         Validator::langDir(APP . '/languages/validator/lang');
-        Validator::lang('ru');
+        Validator::lang($lang);
         $validator = new Validator($data);
         $validator->rules($this->rules);
         $validator->labels($this->getLabels());
