@@ -65,7 +65,9 @@
 <div class="modal-footer">
     <button type="button" class="btn btn-success ripple" data-bs-dismiss="modal"><?= ___('tpl_cart_btn_continue') ?></button>
     <?php if (!empty($_SESSION['cart'])): ?>
-        <button type="button" class="btn btn-primary"><?= ___('tpl_cart_btn_order') ?></button>
+
+        <a href="cart/view" type="button" class="btn btn-primary"><?= ___('tpl_cart_btn_order') ?></a>
+
         <button
             type="button"
             class="btn btn-danger"
