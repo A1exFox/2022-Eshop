@@ -6,6 +6,7 @@ namespace app\controllers;
 
 use app\models\Order;
 use app\models\User;
+use wfm\App;
 
 /** @property \app\models\Cart $model */
 
@@ -101,6 +102,15 @@ class CartController extends AppController
             if (!$order_id = Order::saveOrder($data)) {
                 $_SESSION['errors'] = ___('cart_checkout_error_save_order');
             } else {
+                Order::mailOrder($order_id, $user_email, 'mail_order_user');
+
+                $admin_email = App::$app->getProperty('admin_email');
+                Order::mailOrder($order_id, $admin_email, 'mail_order_admin');
+
+                unset($_SESSION['cart']);
+                unset($_SESSION['cart.sum']);
+                unset($_SESSION['cart.qty']);
+
                 $_SESSION['success'] = ___('cart_checkout_order_success');
             }
         }

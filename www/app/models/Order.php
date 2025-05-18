@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace app\models;
 
 use RedBeanPHP\R;
+use PHPMailer\PHPMailer\PHPMailer;
+use wfm\App;
 
 class Order extends AppModel
 {
@@ -50,5 +52,58 @@ class Order extends AppModel
         $sql_part = rtrim($sql_part, ",");
         R::exec("INSERT INTO order_product (order_id, product_id, title, slug, qty, price, sum) 
         VALUES $sql_part", $binds);
+    }
+
+    public static function mailOrder($order_id, $user_email, $tpl): bool
+    {
+        $properties = App::$app->getProperties();
+        if (
+            !isset($properties['smtp_host']) ||
+            !isset($properties['smtp_auth']) ||
+            !isset($properties['smtp_port']) ||
+            !isset($properties['smtp_username']) ||
+            !isset($properties['smtp_password']) ||
+            !isset($properties['smtp_from_email'])
+        ) {
+            return false;
+        }
+
+        //Create an instance; passing `true` enables exceptions
+        $mail = new PHPMailer(true);
+        try {
+            //Server settings
+            $mail->isSMTP();                                    //Send using SMTP
+            $mail->SMTPDebug = 3;                               //Enable verbose debug output
+            $mail->CharSet = 'UTF-8';
+            $mail->Host       = $properties['smtp_host'];       //Set the SMTP server to send through
+            $mail->SMTPAuth   = $properties['smtp_auth'];       //Enable SMTP authentication
+            $mail->Username   = $properties['smtp_username'];   //SMTP username
+            $mail->Password   = $properties['smtp_password'];   //SMTP password
+            $mail->SMTPSecure = null;                           //Enable implicit TLS encryption
+            $mail->Port       = $properties['smtp_port'];       //TCP port to connect to
+
+            //Content
+            $mail->isHTML(true);                                //Set email format to HTML
+
+            //Recipients
+            $mail->setFrom(
+                $properties['smtp_from_email'],
+                $properties['site_name']
+            );
+            $mail->addAddress($user_email);                     //Add a recipient
+
+            $mail->Subject = sprintf(___('cart_checkout_mail_subject'), $order_id);
+
+            ob_start();
+            require \APP . "/views/mail/$tpl.php";
+            $body = ob_get_clean();
+
+            $mail->Body = $body;
+
+            return $mail->send();
+        } catch (\Exception $e) {
+            // debug($e, true);
+            return false;
+        }
     }
 }

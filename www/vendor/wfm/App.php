@@ -26,5 +26,15 @@ class App
                 self::$app->setProperty($k, $v);
             }
         }
+
+        if (is_file(CONFIG . '/smtp.php')) {
+            $smtp = require_once CONFIG . '/smtp.php';
+        } else {
+            $smtp = [];
+        }
+
+        foreach ($smtp as $k => $v) {
+            self::$app->setProperty($k, $v);
+        }
     }
 }
