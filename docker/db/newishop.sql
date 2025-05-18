@@ -461,6 +461,32 @@ INSERT INTO `product_description` VALUES
 UNLOCK TABLES;
 
 --
+-- Table structure for table `product_download`
+--
+
+DROP TABLE IF EXISTS `product_download`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `product_download` (
+  `product_id` int(10) unsigned NOT NULL,
+  `download_id` int(10) unsigned NOT NULL,
+  PRIMARY KEY (`product_id`,`download_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `product_download`
+--
+
+LOCK TABLES `product_download` WRITE;
+/*!40000 ALTER TABLE `product_download` DISABLE KEYS */;
+INSERT INTO `product_download` VALUES
+(5,1),
+(6,2);
+/*!40000 ALTER TABLE `product_download` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `product_gallery`
 --
 
@@ -553,4 +579,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*M!100616 SET NOTE_VERBOSITY=@OLD_NOTE_VERBOSITY */;
 
--- Dump completed on 2025-05-18  9:39:04
+-- Dump completed on 2025-05-18 12:53:35

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace app\controllers;
 
+use app\models\Order;
 use app\models\User;
 
 /** @property \app\models\Cart $model */
@@ -77,7 +78,7 @@ class CartController extends AppController
                 $user = new \app\models\User();
                 $data = $_POST;
                 $user->load($data);
-                if (!$user->validate($data) || !$user->checkUnique()) {
+                if (!$user->validate($data) || !$user->checkUnique(___('cart_checkout_error_email_unique'))) {
                     $user->getErrors();
                     $_SESSION['form_data'] = $data;
                     redirect();
@@ -91,6 +92,16 @@ class CartController extends AppController
                         redirect();
                     }
                 }
+            }
+
+            $data['user_id'] = $user_id ?? $_SESSION['user']['id'];
+            $data['note'] = post('note');
+            $user_email = $_SESSION['user']['email'] ?? post('email');
+
+            if (!$order_id = Order::saveOrder($data)) {
+                $_SESSION['errors'] = ___('cart_checkout_error_save_order');
+            } else {
+                $_SESSION['success'] = ___('cart_checkout_order_success');
             }
         }
         redirect();
