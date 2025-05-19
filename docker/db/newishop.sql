@@ -229,7 +229,7 @@ CREATE TABLE `order_download` (
 LOCK TABLES `order_download` WRITE;
 /*!40000 ALTER TABLE `order_download` DISABLE KEYS */;
 INSERT INTO `order_download` VALUES
-(1,1,1,5,1,0),
+(1,1,1,5,1,1),
 (2,2,1,6,2,0);
 /*!40000 ALTER TABLE `order_download` ENABLE KEYS */;
 UNLOCK TABLES;
@@ -567,7 +567,7 @@ CREATE TABLE `user` (
   `role` enum('user','admin') NOT NULL DEFAULT 'user',
   PRIMARY KEY (`id`),
   UNIQUE KEY `email` (`email`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -577,7 +577,8 @@ CREATE TABLE `user` (
 LOCK TABLES `user` WRITE;
 /*!40000 ALTER TABLE `user` DISABLE KEYS */;
 INSERT INTO `user` VALUES
-(1,'example@mail.com','$2y$12$Be79H1KiuAqDxbFrr3F5ZuF47xNkA.sHeOl4gO4sGxIGU2cw/AxQC','John','smith st.','user');
+(1,'example@mail.com','$2y$12$Be79H1KiuAqDxbFrr3F5ZuF47xNkA.sHeOl4gO4sGxIGU2cw/AxQC','John','smith st.','user'),
+(2,'jack@mail.com','$2y$12$p2YQG.yFAr4UeLzCsf0aresETImy8iZScQ4fyoH.UrDW9InbqIslK','Jack','jackson st.','user');
 /*!40000 ALTER TABLE `user` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -590,4 +591,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*M!100616 SET NOTE_VERBOSITY=@OLD_NOTE_VERBOSITY */;
 
--- Dump completed on 2025-05-19 11:59:12
+-- Dump completed on 2025-05-19 13:37:57

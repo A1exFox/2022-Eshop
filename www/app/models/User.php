@@ -106,4 +106,28 @@ class User extends AppModel
 
         return $all;
     }
+
+    public function get_count_files(): int
+    {
+        $count = R::count('order_download', 'user_id = ? AND status = 1', [$_SESSION['user']['id']]);
+        return $count;
+    }
+
+    public function get_user_files(int $start, int $perpage, array $lang): array
+    {
+        $sql = "SELECT od.*, d.*, dd.*
+            FROM order_download od
+            JOIN download d
+                ON d.id = od.download_id
+            JOIN download_description dd
+                ON d.id = dd.download_id
+            WHERE od.user_id = ?
+                AND od.status = 1
+                AND dd.language_id = ?
+                LIMIT $start,$perpage";
+
+        $all = R::getAll($sql, [$_SESSION['user']['id'], $lang['id']]);
+
+        return $all;
+    }
 }
