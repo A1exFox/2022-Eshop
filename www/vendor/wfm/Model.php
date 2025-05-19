@@ -19,8 +19,9 @@ abstract class Model
         Db::getInstance();
     }
 
-    public function load(array $data)
+    public function load($post = true)
     {
+        $data = $post ? $_POST : $_GET;
         foreach (array_keys($this->attributes) as $name) {
             if (isset($data[$name])) {
                 $this->attributes[$name] = $data[$name];
@@ -70,6 +71,17 @@ abstract class Model
         $tbl = R::dispense($table);
         foreach ($this->attributes as $name => $value) {
             if ($value !== '') {
+                $tbl->$name = $value;
+            }
+        }
+        return R::store($tbl);
+    }
+
+    public function update(string $table, int $id): int|string
+    {
+        $tbl = R::load($table, $id);
+        foreach ($this->attributes as $name => $value) {
+            if ($value != '') {
                 $tbl->$name = $value;
             }
         }
