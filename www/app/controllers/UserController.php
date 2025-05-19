@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace app\controllers;
 
 use app\models\User;
+use Exception;
 use wfm\App;
 use wfm\Pagination;
 
@@ -91,5 +92,21 @@ class UserController extends AppController
 
         $this->setMeta(___('user_orders_title'));
         $this->set(compact('orders', 'pagination', 'total'));
+    }
+
+    public function orderAction()
+    {
+        if (!User::checkAuth()) {
+            redirect(base_url() . '/user/login');
+        }
+
+        $id = get('id');
+        $order = $this->model->get_user_order($id);
+        if (empty($order)) {
+            throw new Exception("Order \"$id\" is not found", 404);
+        }
+
+        $this->setMeta(___('user_order_title'));
+        $this->set(compact('order'));
     }
 }

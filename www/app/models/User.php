@@ -93,4 +93,17 @@ class User extends AppModel
         $query = R::getAll($sql, [$user_id]);
         return $query;
     }
+
+    public function get_user_order(int $id): array
+    {
+        $sql = "SELECT o.*, op.*
+            FROM orders o
+            JOIN order_product op
+                ON o.id = op.order_id
+            WHERE o.id = ?";
+
+        $all = R::getAll($sql, [$id]);
+
+        return $all;
+    }
 }

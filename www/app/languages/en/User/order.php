@@ -10,7 +10,7 @@ return [
     'user_order_product_sum' => 'Sum',
     'user_order_product_created' => 'Created',
     'user_order_product_updated' => 'Updated',
-    'user_order_details' => 'Order_details',
+    'user_order_details' => 'Order details',
 
     'user_order_num' => 'Order no.',
     'user_order_status_0' => 'New',
