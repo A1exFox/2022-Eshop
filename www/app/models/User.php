@@ -76,4 +76,21 @@ class User extends AppModel
         }
         return false;
     }
+
+    public function get_count_orders(int $user_id): int
+    {
+        $count = R::count('orders', 'user_id = ?', [$user_id]);
+        return $count;
+    }
+
+    public function get_user_orders(int $start, int $perpage, int $user_id): array
+    {
+        $sql = "SELECT *
+            FROM orders
+            WHERE user_id = ?
+                ORDER BY id DESC
+                LIMIT $start, $perpage";
+        $query = R::getAll($sql, [$user_id]);
+        return $query;
+    }
 }

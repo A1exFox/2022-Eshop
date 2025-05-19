@@ -219,7 +219,7 @@ CREATE TABLE `order_download` (
   `download_id` int(10) unsigned NOT NULL,
   `status` tinyint(3) unsigned NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -229,7 +229,8 @@ CREATE TABLE `order_download` (
 LOCK TABLES `order_download` WRITE;
 /*!40000 ALTER TABLE `order_download` DISABLE KEYS */;
 INSERT INTO `order_download` VALUES
-(1,1,1,5,1,0);
+(1,1,1,5,1,0),
+(2,2,1,6,2,0);
 /*!40000 ALTER TABLE `order_download` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -250,7 +251,7 @@ CREATE TABLE `order_product` (
   `price` double NOT NULL,
   `sum` double NOT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -261,7 +262,9 @@ LOCK TABLES `order_product` WRITE;
 /*!40000 ALTER TABLE `order_product` DISABLE KEYS */;
 INSERT INTO `order_product` VALUES
 (1,1,5,'Цифровой товар','cifrovoj-tovar',1,5,5),
-(2,1,4,'iPhone','iphone',5,10,50);
+(2,1,4,'iPhone','iphone',5,10,50),
+(3,2,1,'Canon EOS 5D','canon-eos-5d',3,10,30),
+(4,2,6,'Digital product 2','cifrovoj-tovar-2',1,21,21);
 /*!40000 ALTER TABLE `order_product` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -282,7 +285,7 @@ CREATE TABLE `orders` (
   `total` double NOT NULL,
   `qty` int(10) unsigned DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -292,7 +295,8 @@ CREATE TABLE `orders` (
 LOCK TABLES `orders` WRITE;
 /*!40000 ALTER TABLE `orders` DISABLE KEYS */;
 INSERT INTO `orders` VALUES
-(1,1,0,'test','2025-05-19 09:30:00','2025-05-19 09:30:00',55,6);
+(1,1,0,'test','2025-05-19 09:30:00','2025-05-19 09:30:00',55,6),
+(2,1,0,'test2','2025-05-19 11:58:28','2025-05-19 11:58:28',51,4);
 /*!40000 ALTER TABLE `orders` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -586,4 +590,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*M!100616 SET NOTE_VERBOSITY=@OLD_NOTE_VERBOSITY */;
 
--- Dump completed on 2025-05-19  9:32:36
+-- Dump completed on 2025-05-19 11:59:12
