@@ -3,3 +3,4 @@ www/tmp
 www/composer.lock
 www/vendor/*
 !www/vendor/wfm/
+www/config/smtp.php

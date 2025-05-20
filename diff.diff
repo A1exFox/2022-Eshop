@@ -1,0 +1,473 @@
+diff --git a/www/app/controllers/CartController.php b/www/app/controllers/CartController.php
+index a2c19f7..cffedbc 100644
+--- a/www/app/controllers/CartController.php
++++ b/www/app/controllers/CartController.php
+@@ -4,6 +4,10 @@ declare(strict_types=1);
+ 
+ namespace app\controllers;
+ 
++use app\models\Order;
++use app\models\User;
++use wfm\App;
++
+ /** @property \app\models\Cart $model */
+ 
+ class CartController extends AppController
+@@ -62,4 +66,54 @@ class CartController extends AppController
+         $this->loadView('cart_modal');
+         return true;
+     }
++
++    public function viewAction()
++    {
++        $this->setMeta(___('tpl_cart_title'));
++    }
++
++    public function checkoutAction()
++    {
++        if (!empty($_POST)) {
++            if (!\app\models\User::checkAuth()) {
++                $user = new \app\models\User();
++                $data = $_POST;
++                $user->load($data);
++                if (!$user->validate($data) || !$user->checkUnique(___('cart_checkout_error_email_unique'))) {
++                    $user->getErrors();
++                    $_SESSION['form_data'] = $data;
++                    redirect();
++                } else {
++                    $user->attributes['password'] = password_hash(
++                        $user->attributes['password'],
++                        PASSWORD_DEFAULT
++                    );
++                    if (!$user_id = $user->save('user')) {
++                        $_SESSION['errors'] = ___('cart_checkout_error_register');
++                        redirect();
++                    }
++                }
++            }
++
++            $data['user_id'] = $user_id ?? $_SESSION['user']['id'];
++            $data['note'] = post('note');
++            $user_email = $_SESSION['user']['email'] ?? post('email');
++
++            if (!$order_id = Order::saveOrder($data)) {
++                $_SESSION['errors'] = ___('cart_checkout_error_save_order');
++            } else {
++                Order::mailOrder($order_id, $user_email, 'mail_order_user');
++
++                $admin_email = App::$app->getProperty('admin_email');
++                Order::mailOrder($order_id, $admin_email, 'mail_order_admin');
++
++                unset($_SESSION['cart']);
++                unset($_SESSION['cart.sum']);
++                unset($_SESSION['cart.qty']);
++
++                $_SESSION['success'] = ___('cart_checkout_order_success');
++            }
++        }
++        redirect();
++    }
+ }
+diff --git a/www/app/models/Order.php b/www/app/models/Order.php
+new file mode 100644
+index 0000000..4730888
+--- /dev/null
++++ b/www/app/models/Order.php
+@@ -0,0 +1,109 @@
++<?php
++
++declare(strict_types=1);
++
++namespace app\models;
++
++use RedBeanPHP\R;
++use PHPMailer\PHPMailer\PHPMailer;
++use wfm\App;
++
++class Order extends AppModel
++{
++    public static function saveOrder(array $data): int|false
++    {
++        R::begin();
++        try {
++            $order = R::dispense('orders');
++            $order->user_id = $data['user_id'];
++            $order->note = $data['note'];
++            $order->total = $_SESSION['cart.sum'];
++            $order->qty = $_SESSION['cart.qty'];
++            $order_id = R::store($order);
++            self::saveOrderProduct($order_id, $data['user_id']);
++
++            R::commit();
++            return $order_id;
++        } catch (\Exception $e) {
++            R::rollback();
++            return false;
++        }
++    }
++
++    public static function saveOrderProduct($order_id, $user_id)
++    {
++        $sql_part = '';
++        $binds = [];
++        foreach ($_SESSION['cart'] as $product_id => $product) {
++            if ($product['is_download']) {
++                $download_id = R::getCell("SELECT download_id FROM product_download WHERE product_id = ?", [$product_id]);
++                $order_download = R::xdispense('order_download');
++                $order_download->order_id = $order_id;
++                $order_download->user_id = $user_id;
++                $order_download->product_id = $product_id;
++                $order_download->download_id = $download_id;
++                R::store($order_download);
++            }
++
++            $sum = $product['qty'] * $product['price'];
++            $sql_part .= "(?,?,?,?,?,?,?),";
++            $binds = array_merge($binds, [$order_id, $product_id, $product['title'], $product['slug'], $product['qty'], $product['price'], $sum]);
++        }
++        $sql_part = rtrim($sql_part, ",");
++        R::exec("INSERT INTO order_product (order_id, product_id, title, slug, qty, price, sum) 
++        VALUES $sql_part", $binds);
++    }
++
++    public static function mailOrder($order_id, $user_email, $tpl): bool
++    {
++        $properties = App::$app->getProperties();
++        if (
++            !isset($properties['smtp_host']) ||
++            !isset($properties['smtp_auth']) ||
++            !isset($properties['smtp_port']) ||
++            !isset($properties['smtp_username']) ||
++            !isset($properties['smtp_password']) ||
++            !isset($properties['smtp_from_email'])
++        ) {
++            return false;
++        }
++
++        //Create an instance; passing `true` enables exceptions
++        $mail = new PHPMailer(true);
++        try {
++            //Server settings
++            $mail->isSMTP();                                    //Send using SMTP
++            $mail->SMTPDebug = 3;                               //Enable verbose debug output
++            $mail->CharSet = 'UTF-8';
++            $mail->Host       = $properties['smtp_host'];       //Set the SMTP server to send through
++            $mail->SMTPAuth   = $properties['smtp_auth'];       //Enable SMTP authentication
++            $mail->Username   = $properties['smtp_username'];   //SMTP username
++            $mail->Password   = $properties['smtp_password'];   //SMTP password
++            $mail->SMTPSecure = null;                           //Enable implicit TLS encryption
++            $mail->Port       = $properties['smtp_port'];       //TCP port to connect to
++
++            //Content
++            $mail->isHTML(true);                                //Set email format to HTML
++
++            //Recipients
++            $mail->setFrom(
++                $properties['smtp_from_email'],
++                $properties['site_name']
++            );
++            $mail->addAddress($user_email);                     //Add a recipient
++
++            $mail->Subject = sprintf(___('cart_checkout_mail_subject'), $order_id);
++
++            ob_start();
++            require \APP . "/views/mail/$tpl.php";
++            $body = ob_get_clean();
++
++            $mail->Body = $body;
++
++            return $mail->send();
++        } catch (\Exception $e) {
++            // debug($e, true);
++            return false;
++        }
++    }
++}
+diff --git a/www/app/views/Cart/view.php b/www/app/views/Cart/view.php
+index 82839d9..d4f2d71 100755
+--- a/www/app/views/Cart/view.php
++++ b/www/app/views/Cart/view.php
+@@ -1,9 +1,9 @@
+- /** @var $this \wfm\View */ 
++<?php /** @var $this \wfm\View */ ?>
+ <div class="container">
+     <nav aria-label="breadcrumb">
+         <ol class="breadcrumb bg-light p-2">
+             <li class="breadcrumb-item"><a href="./"><i class="fas fa-home"></i></a></li>
+-            <li class="breadcrumb-item active">'tpl_cart_title'</li>
++            <li class="breadcrumb-item active"><?php __('tpl_cart_title'); ?></li>
+         </ol>
+     </nav>
+ </div>
+@@ -12,40 +12,40 @@
+     <div class="row">
+ 
+         <div class="col-lg-12 category-content">
+-            <h1 class="section-title">'tpl_cart_title'</h1>
++            <h1 class="section-title"><?php __('tpl_cart_title'); ?></h1>
+ 
+-            if (!empty($_SESSION['cart'])):
++            <?php if (!empty($_SESSION['cart'])): ?>
+                 <div class="table-responsive cart-table">
+                     <table class="table text-start">
+                         <thead>
+                         <tr>
+-                            <th scope="col">'tpl_cart_photo'</th>
+-                            <th scope="col">'tpl_cart_product'</th>
+-                            <th scope="col">'tpl_cart_qty'</th>
+-                            <th scope="col">'tpl_cart_price'</th>
++                            <th scope="col"><?php __('tpl_cart_photo'); ?></th>
++                            <th scope="col"><?php __('tpl_cart_product'); ?></th>
++                            <th scope="col"><?php __('tpl_cart_qty'); ?></th>
++                            <th scope="col"><?php __('tpl_cart_price'); ?></th>
+                             <th scope="col"><i class="far fa-trash-alt"></i></th>
+                         </tr>
+                         </thead>
+                         <tbody>
+-                        foreach ($_SESSION['cart'] as $id => $item):
++                        <?php foreach ($_SESSION['cart'] as $id => $item): ?>
+                             <tr class="align-middle">
+                                 <td>
+-                                    <a href="product/'slug'"><img src="PATH . '/' . $item['img']"
++                                    <a href="product/<?= $item['slug'] ?>"><img src="<?= PATH . '/' . $item['img'] ?>"
+                                                                                 alt=""></a>
+                                 </td>
+-                                <td><a href="product/'slug'">$item['title']</a></td>
+-                                <td>$item['qty']</td>
+-                                <td>$$item['price']</td>
+-                                <td><a href="cart/delete?id=$id" data-id="$id" class="del-item"><i class="far fa-trash-alt"></i></a></td>
++                                <td><a href="product/<?= $item['slug'] ?>"><?= $item['title'] ?></a></td>
++                                <td><?= $item['qty'] ?></td>
++                                <td>$<?= $item['price'] ?></td>
++                                <td><a href="cart/delete?id=<?= $id ?>" data-id="<?= $id ?>" class="del-item"><i class="far fa-trash-alt"></i></a></td>
+                             </tr>
+-                        endforeach;
++                        <?php endforeach; ?>
+                         <tr>
+-                            <td colspan="4" class="text-end">'tpl_cart_total_qty'</td>
+-                            <td class="cart-qty-basket">$_SESSION['cart.qty']</td>
++                            <td colspan="4" class="text-end"><?php __('tpl_cart_total_qty'); ?></td>
++                            <td class="cart-qty-basket"><?= $_SESSION['cart.qty'] ?></td>
+                         </tr>
+                         <tr>
+-                            <td colspan="4" class="text-end">'tpl_cart_sum'</td>
+-                            <td class="cart-sum-basket">$$_SESSION['cart.sum']</td>
++                            <td colspan="4" class="text-end"><?php __('tpl_cart_sum'); ?></td>
++                            <td class="cart-sum-basket">$<?= $_SESSION['cart.sum'] ?></td>
+                         </tr>
+                         </tbody>
+                     </table>
+@@ -53,57 +53,57 @@
+ 
+                 <form class="row g-3" method="post" action="cart/checkout">
+ 
+-                    if (!isset($_SESSION['user'])):
++                    <?php if (!isset($_SESSION['user'])): ?>
+                         <div class="col-md-6 offset-md-3">
+                             <div class="form-floating mb-3">
+-                                <input type="email" name="email" class="form-control" id="email" placeholder="name@example.com" value="get_field_value('email')">
+-                                <label class="required" for="email"> __('cart_view_email_input'); </label>
++                                <input type="email" name="email" class="form-control" id="email" placeholder="name@example.com" value="<?= get_field_value('email') ?>">
++                                <label class="required" for="email"><?php __('cart_view_email_input'); ?></label>
+                             </div>
+                         </div>
+ 
+                         <div class="col-md-6 offset-md-3">
+                             <div class="form-floating mb-3">
+-                                <input type="password" name="password" class="form-control" id="password" placeholder="password" value=" get_field_value('password') ">
+-                                <label class="required" for="password"> __('cart_view_password_input'); </label>
++                                <input type="password" name="password" class="form-control" id="password" placeholder="password" value="<?= get_field_value('password') ?>">
++                                <label class="required" for="password"><?php __('cart_view_password_input'); ?></label>
+                             </div>
+                         </div>
+ 
+                         <div class="col-md-6 offset-md-3">
+                             <div class="form-floating mb-3">
+-                                <input type="text" name="name" class="form-control" id="name" placeholder="Name" value=" get_field_value('name') ">
+-                                <label class="required" for="name"> __('cart_view_name_input'); </label>
++                                <input type="text" name="name" class="form-control" id="name" placeholder="Name" value="<?= get_field_value('name') ?>">
++                                <label class="required" for="name"><?php __('cart_view_name_input'); ?></label>
+                             </div>
+                         </div>
+ 
+                         <div class="col-md-6 offset-md-3">
+                             <div class="form-floating mb-3">
+-                                <input type="text" name="address" class="form-control" id="address" placeholder="Address" value=" get_field_value('address') ">
+-                                <label class="required" for="address"> __('cart_view_address_input'); </label>
++                                <input type="text" name="address" class="form-control" id="address" placeholder="Address" value="<?= get_field_value('address') ?>">
++                                <label class="required" for="address"><?php __('cart_view_address_input'); ?></label>
+                             </div>
+                         </div>
+-                     endif; 
++                    <?php endif; ?>
+ 
+                     <div class="col-md-6 offset-md-3">
+                         <div class="form-floating mb-3">
+-                            <textarea name="note" class="form-control" placeholder="Leave a comment here" id="note" style="height: 100px"> get_field_value('note') </textarea>
+-                            <label for="note"> __('cart_view_note_input'); </label>
++                            <textarea name="note" class="form-control" placeholder="Leave a comment here" id="note" style="height: 100px"><?= get_field_value('note') ?></textarea>
++                            <label for="note"><?php __('cart_view_note_input'); ?></label>
+                         </div>
+                     </div>
+ 
+                     <div class="col-md-6 offset-md-3">
+-                        <button type="submit" class="btn btn-danger"> __('cart_view_order_btn'); </button>
++                        <button type="submit" class="btn btn-danger"><?php __('cart_view_order_btn'); ?></button>
+                     </div>
+                 </form>
+ 
+-                
++                <?php
+                 if (isset($_SESSION['form_data'])) {
+                     unset($_SESSION['form_data']);
+                 }
+-                
++                ?>
+ 
+-             else: 
+-                <h4 class="text-start"> __('tpl_cart_empty'); </h4>
+-             endif; 
++            <?php else: ?>
++                <h4 class="text-start"><?php __('tpl_cart_empty'); ?></h4>
++            <?php endif; ?>
+ 
+         </div>
+ 
+diff --git a/www/app/views/mail/mail_order_admin.php b/www/app/views/mail/mail_order_admin.php
+index 07338fe..8f85d96 100644
+--- a/www/app/views/mail/mail_order_admin.php
++++ b/www/app/views/mail/mail_order_admin.php
+@@ -14,32 +14,32 @@
+     <table style="border: 1px solid #ddd; border-collapse: collapse; width: 100%;">
+         <thead>
+             <tr style="background: #f9f9f9;">
+-                <th style="padding: 8px; border: 1px solid #ddd;"> __('tpl_cart_product'); </th>
+-                <th style="padding: 8px; border: 1px solid #ddd;"> __('tpl_cart_qty'); </th>
+-                <th style="padding: 8px; border: 1px solid #ddd;"> __('tpl_cart_price'); </th>
+-                <th style="padding: 8px; border: 1px solid #ddd;"> __('tpl_cart_sum'); </th>
++                <th style="padding: 8px; border: 1px solid #ddd;"><?php __('tpl_cart_product'); ?></th>
++                <th style="padding: 8px; border: 1px solid #ddd;"><?php __('tpl_cart_qty'); ?></th>
++                <th style="padding: 8px; border: 1px solid #ddd;"><?php __('tpl_cart_price'); ?></th>
++                <th style="padding: 8px; border: 1px solid #ddd;"><?php __('tpl_cart_sum'); ?></th>
+             </tr>
+         </thead>
+         <tbody>
+-             foreach ($_SESSION['cart'] as $item): 
++            <?php foreach ($_SESSION['cart'] as $item): ?>
+                 <tr>
+-                    <td style="padding: 8px; border: 1px solid #ddd;"> $item['title'] </td>
+-                    <td style="padding: 8px; border: 1px solid #ddd;"> $item['qty'] </td>
+-                    <td style="padding: 8px; border: 1px solid #ddd;"> $item['price'] </td>
+-                    <td style="padding: 8px; border: 1px solid #ddd;"> $item['price'] * $item['qty'] </td>
++                    <td style="padding: 8px; border: 1px solid #ddd;"><?= $item['title'] ?></td>
++                    <td style="padding: 8px; border: 1px solid #ddd;"><?= $item['qty'] ?></td>
++                    <td style="padding: 8px; border: 1px solid #ddd;"><?= $item['price'] ?></td>
++                    <td style="padding: 8px; border: 1px solid #ddd;"><?= $item['price'] * $item['qty'] ?></td>
+                 </tr>
+-             endforeach; 
++            <?php endforeach; ?>
+             <tr>
+-                <td colspan="3" style="padding: 8px; border: 1px solid #ddd;"> __('tpl_cart_total_qty'); </td>
+-                <td style="padding: 8px; border: 1px solid #ddd;"> $_SESSION['cart.qty'] </td>
++                <td colspan="3" style="padding: 8px; border: 1px solid #ddd;"><?php __('tpl_cart_total_qty'); ?></td>
++                <td style="padding: 8px; border: 1px solid #ddd;"><?= $_SESSION['cart.qty'] ?></td>
+             </tr>
+             <tr>
+-                <td colspan="3" style="padding: 8px; border: 1px solid #ddd;"> __('tpl_cart_sum'); </td>
+-                <td style="padding: 8px; border: 1px solid #ddd;">$ $_SESSION['cart.sum'] </td>
++                <td colspan="3" style="padding: 8px; border: 1px solid #ddd;"><?php __('tpl_cart_sum'); ?></td>
++                <td style="padding: 8px; border: 1px solid #ddd;">$<?= $_SESSION['cart.sum'] ?></td>
+             </tr>
+         </tbody>
+     </table>
+ 
+ </body>
+ 
+-</html>
++</html>
+\ No newline at end of file
+diff --git a/www/app/views/mail/mail_order_user.php b/www/app/views/mail/mail_order_user.php
+index 07338fe..8f85d96 100644
+--- a/www/app/views/mail/mail_order_user.php
++++ b/www/app/views/mail/mail_order_user.php
+@@ -14,32 +14,32 @@
+     <table style="border: 1px solid #ddd; border-collapse: collapse; width: 100%;">
+         <thead>
+             <tr style="background: #f9f9f9;">
+-                <th style="padding: 8px; border: 1px solid #ddd;"> __('tpl_cart_product'); </th>
+-                <th style="padding: 8px; border: 1px solid #ddd;"> __('tpl_cart_qty'); </th>
+-                <th style="padding: 8px; border: 1px solid #ddd;"> __('tpl_cart_price'); </th>
+-                <th style="padding: 8px; border: 1px solid #ddd;"> __('tpl_cart_sum'); </th>
++                <th style="padding: 8px; border: 1px solid #ddd;"><?php __('tpl_cart_product'); ?></th>
++                <th style="padding: 8px; border: 1px solid #ddd;"><?php __('tpl_cart_qty'); ?></th>
++                <th style="padding: 8px; border: 1px solid #ddd;"><?php __('tpl_cart_price'); ?></th>
++                <th style="padding: 8px; border: 1px solid #ddd;"><?php __('tpl_cart_sum'); ?></th>
+             </tr>
+         </thead>
+         <tbody>
+-             foreach ($_SESSION['cart'] as $item): 
++            <?php foreach ($_SESSION['cart'] as $item): ?>
+                 <tr>
+-                    <td style="padding: 8px; border: 1px solid #ddd;"> $item['title'] </td>
+-                    <td style="padding: 8px; border: 1px solid #ddd;"> $item['qty'] </td>
+-                    <td style="padding: 8px; border: 1px solid #ddd;"> $item['price'] </td>
+-                    <td style="padding: 8px; border: 1px solid #ddd;"> $item['price'] * $item['qty'] </td>
++                    <td style="padding: 8px; border: 1px solid #ddd;"><?= $item['title'] ?></td>
++                    <td style="padding: 8px; border: 1px solid #ddd;"><?= $item['qty'] ?></td>
++                    <td style="padding: 8px; border: 1px solid #ddd;"><?= $item['price'] ?></td>
++                    <td style="padding: 8px; border: 1px solid #ddd;"><?= $item['price'] * $item['qty'] ?></td>
+                 </tr>
+-             endforeach; 
++            <?php endforeach; ?>
+             <tr>
+-                <td colspan="3" style="padding: 8px; border: 1px solid #ddd;"> __('tpl_cart_total_qty'); </td>
+-                <td style="padding: 8px; border: 1px solid #ddd;"> $_SESSION['cart.qty'] </td>
++                <td colspan="3" style="padding: 8px; border: 1px solid #ddd;"><?php __('tpl_cart_total_qty'); ?></td>
++                <td style="padding: 8px; border: 1px solid #ddd;"><?= $_SESSION['cart.qty'] ?></td>
+             </tr>
+             <tr>
+-                <td colspan="3" style="padding: 8px; border: 1px solid #ddd;"> __('tpl_cart_sum'); </td>
+-                <td style="padding: 8px; border: 1px solid #ddd;">$ $_SESSION['cart.sum'] </td>
++                <td colspan="3" style="padding: 8px; border: 1px solid #ddd;"><?php __('tpl_cart_sum'); ?></td>
++                <td style="padding: 8px; border: 1px solid #ddd;">$<?= $_SESSION['cart.sum'] ?></td>
+             </tr>
+         </tbody>
+     </table>
+ 
+ </body>
+ 
+-</html>
++</html>
+\ No newline at end of file
+diff --git a/www/public/assets/js/main.js b/www/public/assets/js/main.js
+index e0a302d..bb076c8 100755
+--- a/www/public/assets/js/main.js
++++ b/www/public/assets/js/main.js
+@@ -38,7 +38,12 @@ $(function () {
+             type: 'GET',
+             data: { id },
+             success: function (res) {
+-                showCart(res)
++                const url = window.location.toString()
++                if (url.indexOf('cart/view') !== -1) {
++                    window.location = url
++                } else {
++                    showCart(res)
++                }
+             },
+             error: function () {
+                 alert("Error")
+diff --git a/www/vendor/wfm/Db.php b/www/vendor/wfm/Db.php
+index 975cc49..c245674 100644
+--- a/www/vendor/wfm/Db.php
++++ b/www/vendor/wfm/Db.php
+@@ -26,5 +26,9 @@ class Db
+             R::debug(true, 3);
+             // R::fancyDebug();
+         }
++
++        R::ext('xdispense', function ($type) {
++            return R::getRedBean()->dispense($type);
++        });
+     }
+ }

@@ -92,6 +92,65 @@ INSERT INTO `category_description` VALUES
 UNLOCK TABLES;
 
 --
+-- Table structure for table `download`
+--
+
+DROP TABLE IF EXISTS `download`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `download` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `filename` varchar(255) NOT NULL,
+  `original_name` varchar(255) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `download`
+--
+
+LOCK TABLES `download` WRITE;
+/*!40000 ALTER TABLE `download` DISABLE KEYS */;
+INSERT INTO `download` VALUES
+(1,'price.zip.RNv58WWAW1mF6ly3gTPiq4gHA00tQQ2B','price.zip'),
+(2,'test.txt.fdkrwrcsflytryz23423cf','test.txt'),
+(5,'100.jpg615487b659028','100.jpg');
+/*!40000 ALTER TABLE `download` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `download_description`
+--
+
+DROP TABLE IF EXISTS `download_description`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `download_description` (
+  `download_id` int(10) unsigned NOT NULL,
+  `language_id` int(10) unsigned NOT NULL,
+  `name` varchar(255) NOT NULL,
+  PRIMARY KEY (`download_id`,`language_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `download_description`
+--
+
+LOCK TABLES `download_description` WRITE;
+/*!40000 ALTER TABLE `download_description` DISABLE KEYS */;
+INSERT INTO `download_description` VALUES
+(1,1,'Файл 1'),
+(1,2,'File 1'),
+(2,1,'Файл 2'),
+(2,2,'File 2'),
+(5,1,'Картинка'),
+(5,2,'Picture');
+/*!40000 ALTER TABLE `download_description` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `language`
 --
 
@@ -143,6 +202,91 @@ INSERT INTO `name` VALUES
 (1,'Иванов'),
 (2,'Петров');
 /*!40000 ALTER TABLE `name` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `order_download`
+--
+
+DROP TABLE IF EXISTS `order_download`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `order_download` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `order_id` int(10) unsigned NOT NULL,
+  `user_id` int(10) unsigned NOT NULL,
+  `product_id` int(10) unsigned NOT NULL,
+  `download_id` int(10) unsigned NOT NULL,
+  `status` tinyint(3) unsigned NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `order_download`
+--
+
+LOCK TABLES `order_download` WRITE;
+/*!40000 ALTER TABLE `order_download` DISABLE KEYS */;
+/*!40000 ALTER TABLE `order_download` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `order_product`
+--
+
+DROP TABLE IF EXISTS `order_product`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `order_product` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `order_id` int(10) unsigned NOT NULL,
+  `product_id` int(10) unsigned NOT NULL,
+  `title` varchar(255) NOT NULL,
+  `slug` varchar(255) NOT NULL,
+  `qty` int(10) unsigned NOT NULL,
+  `price` double NOT NULL,
+  `sum` double NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `order_product`
+--
+
+LOCK TABLES `order_product` WRITE;
+/*!40000 ALTER TABLE `order_product` DISABLE KEYS */;
+/*!40000 ALTER TABLE `order_product` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `orders`
+--
+
+DROP TABLE IF EXISTS `orders`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `orders` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` int(10) unsigned DEFAULT NULL,
+  `status` tinyint(4) NOT NULL DEFAULT 0,
+  `note` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `total` double NOT NULL,
+  `qty` int(10) unsigned DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `orders`
+--
+
+LOCK TABLES `orders` WRITE;
+/*!40000 ALTER TABLE `orders` DISABLE KEYS */;
+/*!40000 ALTER TABLE `orders` ENABLE KEYS */;
 UNLOCK TABLES;
 
 --
@@ -317,6 +461,32 @@ INSERT INTO `product_description` VALUES
 UNLOCK TABLES;
 
 --
+-- Table structure for table `product_download`
+--
+
+DROP TABLE IF EXISTS `product_download`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `product_download` (
+  `product_id` int(10) unsigned NOT NULL,
+  `download_id` int(10) unsigned NOT NULL,
+  PRIMARY KEY (`product_id`,`download_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `product_download`
+--
+
+LOCK TABLES `product_download` WRITE;
+/*!40000 ALTER TABLE `product_download` DISABLE KEYS */;
+INSERT INTO `product_download` VALUES
+(5,1),
+(6,2);
+/*!40000 ALTER TABLE `product_download` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `product_gallery`
 --
 
@@ -386,7 +556,7 @@ CREATE TABLE `user` (
   `role` enum('user','admin') NOT NULL DEFAULT 'user',
   PRIMARY KEY (`id`),
   UNIQUE KEY `email` (`email`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -395,6 +565,8 @@ CREATE TABLE `user` (
 
 LOCK TABLES `user` WRITE;
 /*!40000 ALTER TABLE `user` DISABLE KEYS */;
+INSERT INTO `user` VALUES
+(1,'example@mail.com','$2y$12$Be79H1KiuAqDxbFrr3F5ZuF47xNkA.sHeOl4gO4sGxIGU2cw/AxQC','John','smith st.','user');
 /*!40000 ALTER TABLE `user` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -407,4 +579,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*M!100616 SET NOTE_VERBOSITY=@OLD_NOTE_VERBOSITY */;
 
--- Dump completed on 2025-05-16 17:43:10
+-- Dump completed on 2025-05-18 12:53:35
