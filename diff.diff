@@ -1,0 +1,237 @@
+diff --git a/www/app/views/parts/header.php b/www/app/views/parts/header.php
+index 785faf7..c464d46 100644
+--- a/www/app/views/parts/header.php
++++ b/www/app/views/parts/header.php
+@@ -79,29 +79,12 @@
+                         </button>
+ 
+                         <div class="collapse navbar-collapse" id="navbarSupportedContent">
+-                            <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+-                                <li class="nav-item">
+-                                    <a class="nav-link" href="category.html">Компьютеры</a>
+-                                </li>
+-                                <li class="nav-item">
+-                                    <a class="nav-link" href="category.html">Планшеты</a>
+-                                </li>
+-                                <li class="nav-item dropdown">
+-                                    <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+-                                        Ноутбуки
+-                                    </a>
+-                                    <ul class="dropdown-menu" aria-labelledby="navbarDropdown">
+-                                        <li><a class="dropdown-item" href="category.html">Mac</a></li>
+-                                        <li><a class="dropdown-item" href="category.html">Windows</a></li>
+-                                    </ul>
+-                                </li>
+-                                <li class="nav-item">
+-                                    <a class="nav-link" href="category.html">Телефоны</a>
+-                                </li>
+-                                <li class="nav-item">
+-                                    <a class="nav-link" href="category.html">Камеры</a>
+-                                </li>
+-                            </ul>
++
++                            <?php new \app\widgets\menu\Menu([
++                                'cache' => 3600,
++                                'class' => 'navbar-nav ms-auto mb-2 mb-lg-0',
++                            ]) ?>
++
+                         </div>
+ 
+                     </div>
+diff --git a/www/app/widgets/menu/Menu.php b/www/app/widgets/menu/Menu.php
+new file mode 100644
+index 0000000..4ca1324
+--- /dev/null
++++ b/www/app/widgets/menu/Menu.php
+@@ -0,0 +1,108 @@
++<?php
++
++declare(strict_types=1);
++
++namespace app\widgets\menu;
++
++class Menu
++{
++    protected array $data;
++    protected array $tree;
++    protected string $menuHtml;
++    protected string $tpl;
++    protected string $container = 'ul';
++    protected string $class = 'menu';
++    protected string $table = 'category';
++    protected int $cache = 3600;
++    protected string $cacheKey = 'ishop_menu';
++    protected array $attrs = [];
++    protected string $prepend = '';
++    protected array $language;
++
++    public function __construct(array $options = [])
++    {
++        $this->language = \wfm\App::$app->getProperty('language');
++        $this->tpl = __DIR__ . '/menu_tpl.php';
++        $this->getOptions($options);
++        $this->run();
++    }
++
++    protected function getOptions(array $options): void
++    {
++        foreach ($options as $option => $value) {
++            if (property_exists($this, $option)) {
++                $this->$option = $value;
++            }
++        }
++    }
++
++    protected function run(): void
++    {
++        $cache_name = sprintf('%s_%s', $this->cacheKey, $this->language['code']);
++        $cache = \wfm\Cache::getInstance()->get($cache_name);
++        if ($cache) {
++            $this->menuHtml = $cache;
++            $this->output();
++            return;
++        }
++
++        $sql = "SELECT c.*, cd.*
++            FROM category c
++            JOIN category_description cd
++            ON c.id = cd.category_id
++            WHERE cd.language_id = ?";
++
++        $this->data = \RedBeanPHP\R::getAssoc($sql, [$this->language['id']]);
++        $this->tree = $this->getTree();
++        $this->menuHtml = $this->getMenuHtml($this->tree);
++
++        if ($this->cache > 0) {
++            \wfm\Cache::getInstance()->set($cache_name, $this->menuHtml, $this->cache);
++        }
++
++        $this->output();
++    }
++
++    protected function output()
++    {
++        $attrs = '';
++        foreach ($this->attrs as $k => $v) {
++            $attrs .= " $k='$v' ";
++        }
++        echo sprintf('<%s class="%s" %s>', $this->container, $this->class, $attrs);
++        echo $this->prepend;
++        echo $this->menuHtml;
++        echo sprintf('</%s>', $this->container);
++    }
++
++    protected function getTree(): array
++    {
++        $data = $this->data;
++        $tree = [];
++        foreach ($data as $id => &$node) {
++            $parent_id = (int)$node['parent_id'];
++            if ($parent_id === 0) {
++                $tree[$id] = &$node;
++                continue;
++            }
++            $data[$parent_id]['children'][$id] = &$node;
++        }
++        return $tree;
++    }
++
++    protected function getMenuHtml(array $tree, string $tab = ''): string
++    {
++        $str = '';
++        foreach ($tree as $id => $category) {
++            $str .= $this->catToTemplate($category, $tab, $id);
++        }
++        return $str;
++    }
++
++    protected function catToTemplate(array $category, string $tab, mixed $id): string
++    {
++        ob_start();
++        require $this->tpl;
++        return ob_get_clean();
++    }
++}
+diff --git a/www/app/widgets/menu/menu_tpl.php b/www/app/widgets/menu/menu_tpl.php
+new file mode 100644
+index 0000000..aa530b7
+--- /dev/null
++++ b/www/app/widgets/menu/menu_tpl.php
+@@ -0,0 +1,23 @@
++<?php
++
++/**
++ * @var array $category
++ * @var string $tab
++ * @var app\widgets\menu\Menu $this
++ */
++if (!isset($category['children'])): ?>
++    <li class="nav-item">
++        <a class="nav-link" href="category/<?= $category['slug'] ?>">
++            <?= $category['title'] ?>
++        </a>
++    </li>
++<?php else: ?>
++    <li class="nav-item dropdown">
++        <a class="nav-link dropdown-toggle" href="category/<?= $category['slug'] ?>" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
++            <?= $category['title'] ?>
++        </a>
++        <ul class="dropdown-menu" aria-labelledby="navbarDropdown">
++            <?= $this->getMenuHtml($category['children']) ?>
++        </ul>
++    </li>
++<?php endif; ?>
+\ No newline at end of file
+diff --git a/www/vendor/wfm/Cache.php b/www/vendor/wfm/Cache.php
+new file mode 100644
+index 0000000..7e69711
+--- /dev/null
++++ b/www/vendor/wfm/Cache.php
+@@ -0,0 +1,47 @@
++<?php
++
++declare(strict_types=1);
++
++namespace wfm;
++
++class Cache
++{
++    use TSingleton;
++    public function set(string $key, mixed $data, int $seconds = 3600): bool
++    {
++        $content['data'] = $data;
++        $content['end_time'] = time() + $seconds;
++        $file = sprintf('%s/%s.txt', CACHE, md5($key));
++
++        if (!is_dir(CACHE)) {
++            mkdir(CACHE, recursive: true);
++        }
++
++        if (false !== file_put_contents($file, serialize($content))) {
++            return true;
++        }
++        return false;
++    }
++
++    public function get(string $key): mixed
++    {
++        $file = sprintf('%s/%s.txt', CACHE, md5($key));
++        if (is_file($file)) {
++            $serialize_content = file_get_contents($file);
++            $content = unserialize($serialize_content);
++            if (time() <= $content['end_time']) {
++                return $content['data'];
++            }
++            unlink($file);
++        }
++        return false;
++    }
++
++    public function delete(string $key): void
++    {
++        $file = sprintf('%s/%s.txt', CACHE, md5($key));
++        if (is_file($file)) {
++            unlink($file);
++        }
++    }
++}
