@@ -1,0 +1,454 @@
+diff --git a/www/app/controllers/CategoryController.php b/www/app/controllers/CategoryController.php
+new file mode 100644
+index 0000000..1259e03
+--- /dev/null
++++ b/www/app/controllers/CategoryController.php
+@@ -0,0 +1,38 @@
++<?php
++
++declare(strict_types=1);
++
++namespace app\controllers;
++
++use wfm\App;
++use wfm\Pagination;
++use app\models\Breadcrumbs;
++
++/** @property \app\models\Category $model */
++
++class CategoryController extends AppController
++{
++    public function viewAction(): void
++    {
++        $lang  = App::$app->getProperty('language');
++        $category = $this->model->get_category($this->route['slug'], $lang);
++
++        if (is_null($category) || empty($category)) {
++            $this->error_404();
++            return;
++        }
++        $breadcrumbs = Breadcrumbs::getBreadcrumbs($category['id']);
++        $ids = $this->model->getIds($category['id']) . $category['id'];
++
++        $page = get('page');
++        $perpage = App::$app->getProperty('pagination');
++        $total = $this->model->get_count_products($ids);
++        $pagination = new Pagination($page, $perpage, $total);
++        $start = $pagination->getStart();
++
++        $products = $this->model->get_products($ids, $lang, $start, $perpage);
++
++        $this->setMeta($category['title'], (string)$category['description'], (string)$category['keywords']);
++        $this->set(compact('products', 'category', 'breadcrumbs', 'total', 'pagination'));
++    }
++}
+diff --git a/www/app/models/Category.php b/www/app/models/Category.php
+new file mode 100644
+index 0000000..c4ef635
+--- /dev/null
++++ b/www/app/models/Category.php
+@@ -0,0 +1,71 @@
++<?php
++
++declare(strict_types=1);
++
++namespace app\models;
++
++use RedBeanPHP\R;
++use wfm\App;
++
++class Category extends AppModel
++{
++    public function get_category(string $slug, array $lang): array
++    {
++        $sql = "SELECT c.*, cd.*
++            FROM category c
++            JOIN category_description cd
++                ON c.id = cd.category_id
++            WHERE c.slug = ?
++                AND cd.language_id = ?";
++
++        $query = R::getRow($sql, [$slug, $lang['id']]);
++        return $query;
++    }
++
++    public function getIds($id): string
++    {
++        $lang = App::$app->getProperty('language')['code'];
++        $categories = App::$app->getProperty(sprintf('categories_%s', $lang));
++        $ids = '';
++        foreach ($categories as $k => $v) {
++            if ($v['parent_id'] == $id) {
++                $ids .= $k . ',';
++                $ids .= $this->getIds($k);
++            }
++        }
++        return $ids;
++    }
++
++    public function get_products(string $ids, array $lang, int $start, int $perpage): array
++    {
++        $sort_values = [
++            'title_asc' => 'ORDER BY title ASC',
++            'title_desc' => 'ORDER BY title DESC',
++            'price_asc' => 'ORDER BY price ASC',
++            'price_desc' => 'ORDER BY price DESC',
++        ];
++        $order_by = '';
++        if (isset($_GET['sort']) && array_key_exists($_GET['sort'], $sort_values)) {
++            $order_by = $sort_values[$_GET['sort']];
++        }
++
++        $sql = "SELECT p.*, pd.*
++            FROM product p
++            JOIN product_description pd
++                ON p.id = pd.product_id
++            WHERE p.status = 1
++                AND p.category_id IN ($ids)
++                AND pd.language_id = ?
++                $order_by
++            LIMIT $start, $perpage";
++
++        $query = R::getAll($sql, [$lang['id']]);
++
++        return $query;
++    }
++
++    public function get_count_products(string $ids): int
++    {
++        return R::count('product', "category_id IN ($ids) AND status = 1");
++    }
++}
+diff --git a/www/app/views/Category/view.php b/www/app/views/Category/view.php
+index b0eaedb..551e8a4 100644
+--- a/www/app/views/Category/view.php
++++ b/www/app/views/Category/view.php
+@@ -1,13 +1,18 @@
+ <?php
+ 
+ /** 
+- * 
++ * @var string $breadcrumbs 
++ * @var array $category
++ * @var array $products
++ * @var int $total
++ * @var \wfm\Pagination $pagination
++ * @var \wfm\View $this
+  * */
+ ?>
+ <div class="container">
+     <nav aria-label="breadcrumb">
+         <ol class="breadcrumb bg-light p-2">
+-            $breadcrumbs
++            <?= $breadcrumbs ?>
+         </ol>
+     </nav>
+ </div>
+@@ -16,49 +21,75 @@
+     <div class="row">
+ 
+         <div class="col-lg-12 category-content">
+-            <h3 class="section-title">$category['title']</h3>
++            <h3 class="section-title"><?= $category['title'] ?></h3>
+ 
+-            
++            <?php if (!empty($category['content'])): ?>
+                 <div class="category_desc">
+-                    $category['content']
++                    <?= $category['content'] ?>
+                 </div>
++                <hr>
++            <?php endif; ?>
+ 
+-            <div class="row">
+-                <div class="col-sm-6">
+-                    <div class="input-group mb-3">
+-                        <label class="input-group-text" for="input-sort">Сортировка:</label>
+-                        <select class="form-select" id="input-sort">
+-                            <option selected="">По умолчанию</option>
+-                            <option value="1">Название (А - Я)</option>
+-                            <option value="2">Название (Я - А)</option>
+-                            <option value="3">Цена (низкая &gt; высокая)</option>
+-                            <option value="3">Цена (высокая &gt; низкая)</option>
+-                        </select>
++            <?php if (!empty($products) && (count($products) > 1 || $pagination->countPages > 1)): ?>
++                <div class="row">
++                    <div class="col-sm-6">
++                        <div class="input-group mb-3">
++                            <?php
++                            $sort = [
++                                'title_asc' => '',
++                                'title_desc' => '',
++                                'price_asc' => '',
++                                'price_desc' => '',
++                            ];
++                            if (isset($_GET['sort']) && array_key_exists($_GET['sort'], $sort)) {
++                                $sort[$_GET['sort']] = 'selected';
++                            }
++                            ?>
++                            <label class="input-group-text" for="input-sort"><?= ___('category_view_sort') ?>:</label>
++                            <select class="form-select" id="input-sort">
++                                <option value="sort=default" selected=""><?= ___('category_view_sort_by_default') ?></option>
++                                <option value="sort=title_asc"
++                                    <?= $sort['title_asc'] ?>>
++                                    <?= ___('category_view_sort_title_asc') ?>
++                                </option>
++                                <option value="sort=title_desc"
++                                    <?= $sort['title_desc'] ?>>
++                                    <?= ___('category_view_sort_title_desc') ?>
++                                </option>
++                                <option value="sort=price_asc"
++                                    <?= $sort['price_asc'] ?>>
++                                    <?= ___('category_view_sort_price_asc') ?>
++                                </option>
++                                <option value="sort=price_desc"
++                                    <?= $sort['price_desc'] ?>>
++                                    <?= ___('category_view_sort_price_desc') ?>
++                                </option>
++                            </select>
++                        </div>
+                     </div>
+                 </div>
+-
+-            </div>
++            <?php endif; ?>
+ 
+             <div class="row">
+-                $products_loop
+-            </div>
++                <?php if (!empty($products)): ?>
++                    <?php $this->getPart('parts/products_loop', compact('products')) ?>
+ 
+-            <div class="row">
+-                <div class="col-md-12">
+-                    <nav aria-label="Page navigation example">
+-                        <ul class="pagination">
+-                            <li class="page-item"><a class="page-link" href="#">Previous</a></li>
+-                            <li class="page-item active"><a class="page-link" href="#">1</a></li>
+-                            <li class="page-item"><a class="page-link" href="#">2</a></li>
+-                            <li class="page-item"><a class="page-link" href="#">3</a></li>
+-                            <li class="page-item"><a class="page-link" href="#">Next</a></li>
+-                        </ul>
+-                    </nav>
+-                </div>
++                    <div class="row">
++                        <div class="col-md-12">
++                            <p><?= sprintf('%d %s %d', count($products), ___('tpl_total_pagination'), $total) ?></p>
++                            <?php if ($pagination->countPages > 1): ?>
++                                <?= $pagination ?>
++                            <?php endif; ?>
++                        </div>
++
++                    </div>
+ 
++                <?php else: ?>
++                    <p><?= ___('category_view_no_products') ?></p>
++                <?php endif; ?>
+             </div>
+ 
+         </div>
+ 
+     </div>
+-</div>
++</div>
+\ No newline at end of file
+diff --git a/www/config/routes.php b/www/config/routes.php
+index cd7845d..c7fed17 100644
+--- a/www/config/routes.php
++++ b/www/config/routes.php
+@@ -7,6 +7,7 @@ use wfm\Router;
+ Router::add('^admin/?$', ['controller' => 'Main', 'action' => 'index', 'admin_prefix' => 'admin']);
+ Router::add('^admin/(?P<controller>[a-z-]+)/?(?P<action>[a-z-]+)?$', ['admin_prefix' => 'admin']);
+ Router::add('^(?<lang>[a-z]+)?/?product/(?<slug>[a-z0-9-]+)/?$', ['controller' => 'Product', 'action' => 'view']);
++Router::add('^(?<lang>[a-z]+)?/?category/(?<slug>[a-z0-9-]+)/?$', ['controller' => 'Category', 'action' => 'view']);
+ Router::add('^(?P<lang>[a-z]+)?/?$', ['controller' => 'Main', 'action' => 'index']);
+ Router::add('^(?P<controller>[a-z-]+)/(?P<action>[a-z-]+)/?$');
+ Router::add('^(?P<lang>[a-z]+)/(?P<controller>[a-z-]+)/(?P<action>[a-z-]+)/?$');
+diff --git a/www/public/assets/js/main.js b/www/public/assets/js/main.js
+index 7365137..ce47922 100755
+--- a/www/public/assets/js/main.js
++++ b/www/public/assets/js/main.js
+@@ -83,6 +83,14 @@ $(function () {
+     })
+     // End Cart
+ 
++    $('#input-sort').on('change', function () {
++        let sortOption = ''
++        if ($(this).val() != 'sort=default') {
++            sortOption = '?' + $(this).val()
++        }
++        window.location = PATH + window.location.pathname + sortOption
++    })
++
+     $('.open-search').click(function (e) {
+         e.preventDefault();
+         $('#search').addClass('active');
+diff --git a/www/vendor/wfm/Pagination.php b/www/vendor/wfm/Pagination.php
+new file mode 100644
+index 0000000..57c2cad
+--- /dev/null
++++ b/www/vendor/wfm/Pagination.php
+@@ -0,0 +1,163 @@
++<?php
++
++declare(strict_types=1);
++
++namespace wfm;
++
++use Exception;
++
++class Pagination
++{
++    public int $currentPage;
++    public int $perpage;
++    public int $total;
++    public int $countPages;
++    public string $uri;
++
++    public function __construct(int $page, int $perpage, int $total)
++    {
++        $this->perpage = $perpage;
++        $this->total = $total;
++        $this->countPages = $this->getCountPages();
++        $this->currentPage = $this->getCurrentPage($page);
++        $this->uri = $this->getParams();
++    }
++
++    public function getHtml(): string
++    {
++        $curpage = $this->currentPage;
++        $back = '';
++        $forward = '';
++        $startpage = '';
++        $endpage = '';
++        $page2left = '';
++        $page1left = '';
++        $page2right = '';
++        $page1right = '';
++        $pageActive = '';
++
++        $format = '<li class="page-item %s"><a class="page-link" href="%s">%s</a></li>';
++
++        if ($curpage > 1) {
++            $prev1 = $curpage - 1;
++            $back = sprintf($format, '', $this->getLink($prev1), "&lt;");
++            $page1left = sprintf($format, '', $this->getLink($prev1), "$prev1");
++        }
++        if ($curpage > 2) {
++            $back2 = $curpage - 2;
++            $page2left = sprintf($format, '', $this->getLink($back2), "$back2");
++        }
++        if ($curpage > 3) {
++            $startpage = sprintf($format, '', $this->getLink(1), "&laquo;");
++        }
++
++        if ($curpage < $this->countPages) {
++            $next1 = $curpage + 1;
++            $forward = sprintf($format, '', $this->getLink($next1), "&gt;");
++            $page1right = sprintf($format, '', $this->getLink($next1), "$next1");
++        }
++        if ($curpage < ($this->countPages - 1)) {
++            $next2 = $curpage + 2;
++            $page2right = sprintf($format, '', $this->getLink($next2), "$next2");
++        }
++        if ($curpage < ($this->countPages - 2)) {
++            $endpage = sprintf($format, '', $this->getLink($this->countPages), "&raquo;");
++        }
++
++        $pageActive = sprintf($format, 'active', $this->getLink($curpage), "$curpage");
++
++        $elements = $startpage . PHP_EOL
++            . $back . PHP_EOL
++            . $page2left . PHP_EOL
++            . $page1left . PHP_EOL
++            . $pageActive . PHP_EOL
++            . $page1right . PHP_EOL
++            . $page2right . PHP_EOL
++            . $forward . PHP_EOL
++            . $endpage . PHP_EOL;
++
++        $html = '<nav aria-label="Page navigation example">
++                        <ul class="pagination">
++                            %s
++                        </ul>
++                    </nav>';
++
++        $html = sprintf($html, $elements);
++        return $html;
++    }
++
++    public function getLink(int $page): string
++    {
++        if ($page === 1) {
++            return rtrim($this->uri, '?&');
++        }
++
++        if (str_contains($this->uri, '&')) {
++            return sprintf('%spage=%d', $this->uri, $page);
++        }
++
++        if (str_contains($this->uri, '?')) {
++            return sprintf('%spage=%d', $this->uri, $page);
++        }
++
++        return sprintf('%s?page=%d', $this->uri, $page);
++    }
++
++    public function getCurrentPage(int $page): int
++    {
++        if ($page < 1) {
++            $page = 1;
++        }
++        if ($page > $this->countPages) {
++            $page = $this->countPages;
++        }
++        return $page;
++    }
++
++    public function getStart(): int
++    {
++        $startItem = ($this->currentPage - 1) * $this->perpage;
++        return $startItem;
++    }
++
++    public function getParams(): string
++    {
++        // $url = "/category/kompyutery?bar=true&page=11&var=test";
++        $url = $_SERVER['REQUEST_URI'];
++        $parts = explode('?', $url);
++        $uri = $parts[0];
++        if (count($parts) === 1 || empty($parts[1])) {
++            return $uri;
++        }
++
++        $uri .= '?';
++        $params = explode('&', $parts[1]);
++
++        foreach ($params as $param) {
++            if (false === (bool) preg_match('#page=#', $param)) {
++                $uri .= $param . '&';
++            }
++        }
++
++        return $uri;
++    }
++
++    public function __toString()
++    {
++        return $this->getHtml();
++    }
++
++    public function getCountPages(): int
++    {
++        if ($this->perpage === 0) {
++            throw new Exception("Division by zero");
++        }
++
++        $count = (int) ceil($this->total / $this->perpage);
++
++        if ($count === 0) {
++            $count = 1;
++        }
++        return $count;
++    }
++}
