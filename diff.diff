@@ -1,0 +1,132 @@
+diff --git a/www/app/controllers/AppController.php b/www/app/controllers/AppController.php
+index 56a619e..62f9487 100644
+--- a/www/app/controllers/AppController.php
++++ b/www/app/controllers/AppController.php
+@@ -23,5 +23,14 @@ class AppController extends Controller
+         App::$app->setProperty('language', $language);
+ 
+         \wfm\Language::load($language['code'], $this->route);
++
++        $sql = "SELECT c.*, cd.*
++            FROM category c
++            JOIN category_description cd
++            ON c.id = cd.category_id
++            WHERE cd.language_id = ?";
++
++        $categories = \RedBeanPHP\R::getAssoc($sql, [$language['id']]);
++        App::$app->setProperty(sprintf('categories_%s', $language['code']), $categories);
+     }
+ }
+diff --git a/www/app/controllers/ProductController.php b/www/app/controllers/ProductController.php
+index eb671d0..a1e3578 100644
+--- a/www/app/controllers/ProductController.php
++++ b/www/app/controllers/ProductController.php
+@@ -20,9 +20,10 @@ class ProductController extends AppController
+             throw new Exception(sprintf("Товар по запросу \"%s\" не найден", $this->route['slug']));
+         }
+ 
++        $breadcrumbs = \app\models\Breadcrumbs::getBreadcrumbs($product['category_id'], $product['title']);
+         $gallery = $this->model->get_gallery($product['id']);
+ 
+         $this->setMeta((string)$product['title'], (string)$product['description'], (string)$product['keywords']);
+-        $this->set(compact(['product', 'gallery']));
++        $this->set(compact(['product', 'gallery', 'breadcrumbs']));
+     }
+ }
+diff --git a/www/app/models/Breadcrumbs.php b/www/app/models/Breadcrumbs.php
+new file mode 100644
+index 0000000..db82ef9
+--- /dev/null
++++ b/www/app/models/Breadcrumbs.php
+@@ -0,0 +1,51 @@
++<?php
++
++declare(strict_types=1);
++
++namespace app\models;
++
++use wfm\App;
++
++class Breadcrumbs extends AppModel
++{
++    public static function getBreadcrumbs(string $category_id, string $name = ''): string
++    {
++        $lang = App::$app->getProperty('language')['code'];
++        $catPropName = sprintf('categories_%s', $lang);
++        $categories = App::$app->getProperty($catPropName);
++        $breadcrumbs_array = self::getParts($categories, $category_id);
++
++        $breadcrumbs = "<li class=\"breadcrumb-item\">"
++            . "<a href=\"" . base_url() . "\">"
++            . ___('tpl_home_breadcrumbs') . "</a></li>" . PHP_EOL;
++
++        if (is_array($breadcrumbs_array)) {
++            foreach ($breadcrumbs_array as $slug => $title) {
++                $breadcrumbs .= "<li class=\"breadcrumb-item\">"
++                    . "<a href=\"category/" . $slug . "\">" . $title . "</a>"
++                    . "</li>" . PHP_EOL;
++            }
++        }
++
++        $breadcrumbs .= "<li class=\"breadcrumb-item active\">" . $name . "</li>";
++        return $breadcrumbs;
++    }
++
++    public static function getParts(array $cats, string $id): array|false
++    {
++        if (empty($id)) {
++            return false;
++        }
++        $breadcrumbs = [];
++
++        for ($i = 0; $i < count($cats); $i++) {
++            if (!isset($cats[$id])) {
++                break;
++            }
++            $breadcrumbs[$cats[$id]['slug']] = $cats[$id]['title'];
++            $id = $cats[$id]['parent_id'];
++        }
++        $breadcrumbs = array_reverse($breadcrumbs, true);
++        return $breadcrumbs;
++    }
++}
+diff --git a/www/app/views/Product/view.php b/www/app/views/Product/view.php
+index 8cb12ab..6da9e03 100644
+--- a/www/app/views/Product/view.php
++++ b/www/app/views/Product/view.php
+@@ -4,14 +4,13 @@
+  * @var \wfm\View $this
+  * @var array $product
+  * @var array $gallery
++ * @var string $breadcrumbs
+  */
+ ?>
+ <div class="container">
+     <nav aria-label="breadcrumb">
+         <ol class="breadcrumb bg-light p-2">
+-            <li class="breadcrumb-item"><a href="index.html"><i class="fas fa-home"></i></a></li>
+-            <li class="breadcrumb-item"><a href="#">Ноутбуки</a></li>
+-            <li class="breadcrumb-item active" aria-current="page">MacBook</li>
++            <?= $breadcrumbs ?>
+         </ol>
+     </nav>
+ </div>
+diff --git a/www/app/widgets/menu/Menu.php b/www/app/widgets/menu/Menu.php
+index 4ca1324..a38e71e 100644
+--- a/www/app/widgets/menu/Menu.php
++++ b/www/app/widgets/menu/Menu.php
+@@ -46,13 +46,7 @@ class Menu
+             return;
+         }
+ 
+-        $sql = "SELECT c.*, cd.*
+-            FROM category c
+-            JOIN category_description cd
+-            ON c.id = cd.category_id
+-            WHERE cd.language_id = ?";
+-
+-        $this->data = \RedBeanPHP\R::getAssoc($sql, [$this->language['id']]);
++        $this->data = \wfm\App::$app->getProperty(sprintf('categories_%s', $this->language['code']));
+         $this->tree = $this->getTree();
+         $this->menuHtml = $this->getMenuHtml($this->tree);
+ 
