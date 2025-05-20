@@ -59,11 +59,11 @@
                             </a>
                             <ul class="dropdown-menu">
                                 <?php if (empty($_SESSION['user'])): ?>
-                                    <li><a class="dropdown-item" href="#"><?= ___('tpl_login') ?></a></li>
-                                    <li><a class="dropdown-item" href="#"><?= ___('tpl_signup') ?></a></li>
+                                    <li><a class="dropdown-item" href="user/login"><?= ___('tpl_login') ?></a></li>
+                                    <li><a class="dropdown-item" href="user/signup"><?= ___('tpl_signup') ?></a></li>
                                 <?php else: ?>
-                                    <li><a class="dropdown-item" href="#"><?= ___('tpl_cabinet') ?></a></li>
-                                    <li><a class="dropdown-item" href="#"><?= ___('tpl_logout') ?></a></li>
+                                    <li><a class="dropdown-item" href="user/cabinet"><?= ___('tpl_cabinet') ?></a></li>
+                                    <li><a class="dropdown-item" href="user/logout"><?= ___('tpl_logout') ?></a></li>
                                 <?php endif; ?>
                             </ul>
                         </div>

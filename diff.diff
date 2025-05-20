@@ -1,0 +1,424 @@
+diff --git a/www/app/controllers/UserController.php b/www/app/controllers/UserController.php
+new file mode 100644
+index 0000000..ed59756
+--- /dev/null
++++ b/www/app/controllers/UserController.php
+@@ -0,0 +1,65 @@
++<?php
++
++declare(strict_types=1);
++
++namespace app\controllers;
++
++use app\models\User;
++
++/** @property \app\models\User $model */
++
++class UserController extends AppController
++{
++    public function signupAction()
++    {
++        if (User::checkAuth()) {
++            redirect(base_url());
++        }
++
++        if (!empty($_POST)) {
++            $data = $_POST;
++            $this->model->load($data);
++            if (false === $this->model->validate($data) || !$this->model->checkUnique()) {
++                $this->model->getErrors();
++                $_SESSION['form_data'] = $data;
++            } else {
++                $pass = $this->model->attributes['password'];
++                $this->model->attributes['password'] = password_hash($pass, PASSWORD_DEFAULT);
++                if ($this->model->save('user')) {
++                    $_SESSION['success'] = ___('user_signup_success_register');
++                } else {
++                    $_SESSION['errors'] = ___('user_signup_error_register');
++                }
++            }
++            redirect();
++        }
++
++        $this->setMeta(___('tpl_signup'));
++    }
++
++    public function loginAction()
++    {
++        if (User::checkAuth()) {
++            redirect(base_url());
++        }
++
++        if (!empty($_POST)) {
++            if ($this->model->login()) {
++                $_SESSION['success'] = ___('user_login_success_login');
++                redirect(base_url());
++            } else {
++                $_SESSION['errors'] = ___('user_login_error_login');
++                redirect();
++            }
++        }
++        $this->setMeta(___('tpl_login'));
++    }
++
++    public function logoutAction()
++    {
++        if (User::checkAuth()) {
++            unset($_SESSION['user']);
++        }
++        redirect(base_url() . 'user/login');
++    }
++}
+diff --git a/www/app/models/User.php b/www/app/models/User.php
+new file mode 100644
+index 0000000..23f6630
+--- /dev/null
++++ b/www/app/models/User.php
+@@ -0,0 +1,79 @@
++<?php
++
++declare(strict_types=1);
++
++namespace app\models;
++
++use RedBeanPHP\R;
++
++class User extends AppModel
++{
++    public array $attributes = [
++        'email' => '',
++        'password' => '',
++        'name' => '',
++        'address' => '',
++    ];
++
++    public array $rules = [
++        'required' => [
++            ['email'],
++            ['password'],
++            ['name'],
++            ['address'],
++        ],
++        'email' => [
++            ['email']
++        ],
++        'lengthMin' => [
++            ['password', 6],
++        ],
++    ];
++
++    public array $labels = [
++        'email' => 'tpl_signup_email_input',
++        'password' => 'tpl_signup_password_input',
++        'name' => 'tpl_signup_name_input',
++        'address' => 'tpl_signup_address_input',
++    ];
++
++    public static function checkAuth(): bool
++    {
++        return isset($_SESSION['user']);
++    }
++
++    public function checkUnique(string $text_error = ''): bool
++    {
++        $user = R::findOne('user', 'email = ?', [$this->attributes['email']]);
++        if ($user) {
++            $this->errors['unique'][] = $text_error ?: ___('user_signup_error_email_unique');
++            return false;
++        }
++        return true;
++    }
++
++    public function login(bool $is_admin = false)
++    {
++        $email = post('email');
++        $password = post('password');
++        if ($email && $password) {
++            if ($is_admin) {
++                $user = R::findOne('user', "email = ? AND role = 'admin'", [$email]);
++            } else {
++                $user = R::findOne('user', "email = ?", [$email]);
++            }
++
++            if ($user) {
++                if (password_verify($password, $user->password)) {
++                    foreach ($user as $k => $v) {
++                        if ($k !== 'password') {
++                            $_SESSION['user'][$k] = $v;
++                        }
++                    }
++                    return true;
++                }
++            }
++        }
++        return false;
++    }
++}
+diff --git a/www/app/views/User/login.php b/www/app/views/User/login.php
+index 26f9f63..0a37fcd 100755
+--- a/www/app/views/User/login.php
++++ b/www/app/views/User/login.php
+@@ -2,7 +2,7 @@
+     <nav aria-label="breadcrumb">
+         <ol class="breadcrumb bg-light p-2">
+             <li class="breadcrumb-item"><a href="./"><i class="fas fa-home"></i></a></li>
+-            <li class="breadcrumb-item active">'tpl_login'</li>
++            <li class="breadcrumb-item active"><?php __('tpl_login'); ?></li>
+         </ol>
+     </nav>
+ </div>
+@@ -11,7 +11,7 @@
+     <div class="row">
+ 
+         <div class="col-lg-12 category-content">
+-            <h1 class="section-title">'tpl_login'</h1>
++            <h1 class="section-title"><?php __('tpl_login'); ?></h1>
+ 
+             <form class="row g-3" method="post">
+ 
+@@ -19,7 +19,7 @@
+                     <div class="form-floating mb-3">
+                         <!-- <input type="email" name="email" class="form-control" id="email" placeholder="name@example.com" required> -->
+                         <input type="text" name="email" class="form-control" id="email" placeholder="name@example.com">
+-                        <label class="required" for="email">'tpl_signup_email_input'</label>
++                        <label class="required" for="email"><?php __('tpl_signup_email_input'); ?></label>
+                     </div>
+                 </div>
+ 
+@@ -27,15 +27,15 @@
+                     <div class="form-floating mb-3">
+                         <!-- <input type="password" name="password" class="form-control" id="password" placeholder="password" required> -->
+                         <input type="password" name="password" class="form-control" id="password" placeholder="password">
+-                        <label class="required" for="password">'tpl_signup_password_input'</label>
++                        <label class="required" for="password"><?php __('tpl_signup_password_input'); ?></label>
+                     </div>
+                 </div>
+ 
+                 <div class="col-md-6 offset-md-3">
+-                    <button type="submit" class="btn btn-danger">'user_login_login_btn'</button>
++                    <button type="submit" class="btn btn-danger"><?php __('user_login_login_btn'); ?></button>
+                 </div>
+             </form>
+ 
+         </div>
+     </div>
+-</div>
++</div>
+\ No newline at end of file
+diff --git a/www/app/views/User/signup.php b/www/app/views/User/signup.php
+index f7071a5..eada1dd 100755
+--- a/www/app/views/User/signup.php
++++ b/www/app/views/User/signup.php
+@@ -2,7 +2,7 @@
+     <nav aria-label="breadcrumb">
+         <ol class="breadcrumb bg-light p-2">
+             <li class="breadcrumb-item"><a href="./"><i class="fas fa-home"></i></a></li>
+-            <li class="breadcrumb-item active">'tpl_signup'</li>
++            <li class="breadcrumb-item active"><?php __('tpl_signup'); ?></li>
+         </ol>
+     </nav>
+ </div>
+@@ -11,7 +11,7 @@
+     <div class="row">
+ 
+         <div class="col-lg-12 category-content">
+-            <h1 class="section-title">'tpl_signup'</h1>
++            <h1 class="section-title"><?php __('tpl_signup'); ?></h1>
+ 
+             <form class="row g-3" method="post">
+ 
+@@ -23,8 +23,8 @@
+                             class="form-control"
+                             id="email"
+                             placeholder="name@example.com"
+-                            value="'email'">
+-                        <label class="required" for="email">'tpl_signup_email_input'</label>
++                            value="<?= get_field_value('email') ?>">
++                        <label class="required" for="email"><?php __('tpl_signup_email_input'); ?></label>
+                     </div>
+                 </div>
+ 
+@@ -36,7 +36,7 @@
+                             class="form-control"
+                             id="password"
+                             placeholder="password">
+-                        <label class="required" for="password">'tpl_signup_password_input'</label>
++                        <label class="required" for="password"><?php __('tpl_signup_password_input'); ?></label>
+                     </div>
+                 </div>
+ 
+@@ -48,8 +48,8 @@
+                             class="form-control"
+                             id="name"
+                             placeholder="Name"
+-                            value="'name'">
+-                        <label class="required" for="name">'tpl_signup_name_input'</label>
++                            value="<?= get_field_value('name') ?>">
++                        <label class="required" for="name"><?php __('tpl_signup_name_input'); ?></label>
+                     </div>
+                 </div>
+ 
+@@ -61,19 +61,21 @@
+                             class="form-control"
+                             id="address"
+                             placeholder="Address"
+-                            value="'address'">
+-                        <label class="required" for="address">'tpl_signup_address_input'</label>
++                            value="<?= get_field_value('address') ?>">
++                        <label class="required" for="address"><?php __('tpl_signup_address_input'); ?></label>
+                     </div>
+                 </div>
+ 
+                 <div class="col-md-6 offset-md-3">
+-                    <button type="submit" class="btn btn-danger">'user_signup_signup_btn'</button>
++                    <button type="submit" class="btn btn-danger"><?php __('user_signup_signup_btn'); ?></button>
+                 </div>
+             </form>
+-            isset($_SESSION['form_data'])
+-            unset($_SESSION['form_data']);
+-
++            <?php
++            if (isset($_SESSION['form_data'])) {
++                unset($_SESSION['form_data']);
++            }
++            ?>
+ 
+         </div>
+     </div>
+-</div>
++</div>
+\ No newline at end of file
+diff --git a/www/app/views/layouts/ishop.php b/www/app/views/layouts/ishop.php
+index 2be33f0..e04e101 100644
+--- a/www/app/views/layouts/ishop.php
++++ b/www/app/views/layouts/ishop.php
+@@ -7,25 +7,25 @@
+ <div class="container">
+     <div class="row">
+         <div class="col">
+-            
++            <?php if (!empty($_SESSION['errors'])): ?>
+                 <div class="alert alert-danger alert-dismissible fade show" role="alert">
+-                    'errors'
+-                    
++                    <?php echo $_SESSION['errors'];
++                    unset($_SESSION['errors']); ?>
+                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                 </div>
+-            
++            <?php endif; ?>
+ 
+-            
++            <?php if (!empty($_SESSION['success'])): ?>
+                 <div class="alert alert-success alert-dismissible fade show" role="alert">
+-                    'success'
+-                    
++                    <?php echo $_SESSION['success'];
++                    unset($_SESSION['success']); ?>
+                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                 </div>
+-            
++            <?php endif; ?>
+         </div>
+     </div>
+ </div>
+ 
+ <?= $this->content ?>
+ 
+-<?php $this->getPart('parts/footer'); ?>
++<?php $this->getPart('parts/footer'); ?>
+\ No newline at end of file
+diff --git a/www/vendor/wfm/Model.php b/www/vendor/wfm/Model.php
+index 24b3396..11a0202 100644
+--- a/www/vendor/wfm/Model.php
++++ b/www/vendor/wfm/Model.php
+@@ -4,6 +4,9 @@ declare(strict_types=1);
+ 
+ namespace wfm;
+ 
++use RedBeanPHP\R;
++use Valitron\Validator;
++
+ abstract class Model
+ {
+     public array $attributes = [];
+@@ -15,4 +18,61 @@ abstract class Model
+     {
+         Db::getInstance();
+     }
++
++    public function load(array $data)
++    {
++        foreach (array_keys($this->attributes) as $name) {
++            if (isset($data[$name])) {
++                $this->attributes[$name] = $data[$name];
++            }
++        }
++    }
++
++    public function validate(array $data): bool
++    {
++        $lang = App::$app->getProperty('language')['code'];
++        Validator::langDir(APP . '/languages/validator/lang');
++        Validator::lang($lang);
++        $validator = new Validator($data);
++        $validator->rules($this->rules);
++        $validator->labels($this->getLabels());
++        if ($validator->validate()) {
++            return true;
++        } else {
++            $this->errors = $validator->errors();
++            return false;
++        }
++    }
++
++    public function getErrors(): void
++    {
++        $errors = '<ul>' . PHP_EOL;
++        foreach ($this->errors as $error) {
++            foreach ($error as $item) {
++                $errors .= sprintf('<li>%s</li>', $item) . PHP_EOL;
++            }
++        }
++        $errors .= '</ul>';
++        $_SESSION['errors'] = $errors;
++    }
++
++    public function getLabels(): array
++    {
++        $labels = [];
++        foreach ($this->labels as $k => $v) {
++            $labels[$k] = ___($v);
++        }
++        return $labels;
++    }
++
++    public function save(string $table): int|string
++    {
++        $tbl = R::dispense($table);
++        foreach ($this->attributes as $name => $value) {
++            if ($value !== '') {
++                $tbl->$name = $value;
++            }
++        }
++        return R::store($tbl);
++    }
+ }
+diff --git a/www/vendor/wfm/helpers/functions.php b/www/vendor/wfm/helpers/functions.php
+index cc345cd..cb29f94 100644
+--- a/www/vendor/wfm/helpers/functions.php
++++ b/www/vendor/wfm/helpers/functions.php
+@@ -94,3 +94,13 @@ function get_cart_icon(string $id): string
+     }
+     return $icon;
+ }
++
++function get_field_value(string $name): string
++{
++    if (isset($_SESSION['form_data'][$name])) {
++        $data = h($_SESSION['form_data'][$name]);
++    } else {
++        $data = '';
++    }
++    return $data;
++}
