@@ -1,0 +1,547 @@
+diff --git a/www/app/controllers/AppController.php b/www/app/controllers/AppController.php
+index a5ddcc3..56a619e 100644
+--- a/www/app/controllers/AppController.php
++++ b/www/app/controllers/AppController.php
+@@ -5,11 +5,23 @@ declare(strict_types=1);
+ namespace app\controllers;
+ 
+ use wfm\Controller;
++use app\models\AppModel;
++use app\widgets\language\Language;
++use wfm\App;
+ 
+ class AppController extends Controller
+ {
+     public function __construct(array $route)
+     {
+         parent::__construct($route);
++        new AppModel();
++
++        $languages = Language::getLanguages();
++        $language = Language::getLanguage($languages);
++
++        App::$app->setProperty('languages', $languages);
++        App::$app->setProperty('language', $language);
++
++        \wfm\Language::load($language['code'], $this->route);
+     }
+ }
+diff --git a/www/app/controllers/LanguageController.php b/www/app/controllers/LanguageController.php
+new file mode 100644
+index 0000000..8da3e44
+--- /dev/null
++++ b/www/app/controllers/LanguageController.php
+@@ -0,0 +1,35 @@
++<?php
++
++declare(strict_types=1);
++
++namespace app\controllers;
++
++use wfm\App;
++
++class LanguageController extends AppController
++{
++    public function changeAction(): void
++    {
++        $lang = get('lang', 's');
++        if ($lang) {
++            if (array_key_exists($lang, App::$app->getProperty('languages'))) {
++                $url = trim(str_replace(PATH, '', $_SERVER['HTTP_REFERER']), '/');
++                $url_parts = explode('/', $url, 2);
++                if (array_key_exists($url_parts[0], App::$app->getProperty('languages'))) {
++                    if ($lang !== App::$app->getProperty('language')['code']) {
++                        $url_parts[0] = $lang;
++                    } else {
++                        array_shift($url_parts);
++                    }
++                } else {
++                    if ($lang !== App::$app->getProperty('language')['code']) {
++                        array_unshift($url_parts, $lang);
++                    }
++                }
++                $url = PATH . '/' . implode('/', $url_parts);
++                redirect($url);
++            }
++        }
++        redirect();
++    }
++}
+diff --git a/www/app/controllers/MainController.php b/www/app/controllers/MainController.php
+index 506d8a9..b7c50f0 100644
+--- a/www/app/controllers/MainController.php
++++ b/www/app/controllers/MainController.php
+@@ -6,6 +6,7 @@ namespace app\controllers;
+ 
+ use RedBeanPHP\R;
+ use app\models\Main;
++use wfm\App;
+ 
+ /** @property Main $model */
+ 
+@@ -14,9 +15,16 @@ class MainController extends AppController
+     public function indexAction()
+     {
+         $slides = R::findAll('slider');
+-        $products = $this->model->get_hits(1, 6);
++        $lang = App::$app->getProperty('language');
++        $products = $this->model->get_hits($lang, 6);
+ 
+ 
+         $this->set(compact(['slides', 'products']));
++
++        $meta_title = ___('main_index_meta_title');
++        $meta_description = ___('main_index_meta_description');
++        $meta_keywords = ___('main_index_meta_keywords');
++
++        $this->setMeta($meta_title, $meta_description, $meta_keywords);
+     }
+ }
+diff --git a/www/app/controllers/ProductController.php b/www/app/controllers/ProductController.php
+new file mode 100644
+index 0000000..79742cd
+--- /dev/null
++++ b/www/app/controllers/ProductController.php
+@@ -0,0 +1,10 @@
++<?php
++
++declare(strict_types=1);
++
++namespace app\controllers;
++
++class ProductController extends AppController
++{
++    public function viewAction() {}
++}
+diff --git a/www/app/models/Main.php b/www/app/models/Main.php
+index 1f22f6c..50cdbe1 100644
+--- a/www/app/models/Main.php
++++ b/www/app/models/Main.php
+@@ -8,7 +8,7 @@ use RedBeanPHP\R;
+ 
+ class Main extends AppModel
+ {
+-    public function get_hits(int $lang, int $limit): array
++    public function get_hits(array $lang, int $limit): array
+     {
+         return R::getAll("SELECT p.*, pd.* 
+             FROM product p
+@@ -17,6 +17,6 @@ class Main extends AppModel
+             WHERE p.status = 1
+                 AND p.hit = 1
+                 AND pd.language_id = ?
+-            LIMIT $limit", [$lang]);
++            LIMIT $limit", [$lang['id']]);
+     }
+ }
+diff --git a/www/app/views/Main/index.php b/www/app/views/Main/index.php
+index 0900efe..487947f 100644
+--- a/www/app/views/Main/index.php
++++ b/www/app/views/Main/index.php
+@@ -51,7 +51,7 @@
+         <div class="container">
+             <div class="row">
+                 <div class="col-12">
+-                    <h3 class="section-title">Рекомендуемые товары</h3>
++                    <h3 class="section-title"><?= ___('main_index_featured_products') ?></h3>
+                 </div>
+ 
+                 <?php $this->getPart('parts/products_loop', compact(['products'])); ?>
+diff --git a/www/app/views/Product/view.php b/www/app/views/Product/view.php
+new file mode 100644
+index 0000000..48e4913
+--- /dev/null
++++ b/www/app/views/Product/view.php
+@@ -0,0 +1,61 @@
++<?php
++
++/**
++ * @var \wfm\View $this
++ */
++?>
++<div class="container">
++    <nav aria-label="breadcrumb">
++        <ol class="breadcrumb bg-light p-2">
++            <li class="breadcrumb-item"><a href="index.html"><i class="fas fa-home"></i></a></li>
++            <li class="breadcrumb-item"><a href="#">Ноутбуки</a></li>
++            <li class="breadcrumb-item active" aria-current="page">MacBook</li>
++        </ol>
++    </nav>
++</div>
++
++
++<div class="container py-3">
++    <div class="row">
++
++        <div class="col-md-4 order-md-2">
++
++            <h1>MacBook</h1>
++
++            <ul class="list-unstyled">
++                <li><i class="fas fa-check text-success"></i> В наличии</li>
++                <li><i class="fas fa-shipping-fast text-muted"></i> Ожидается</li>
++                <li><i class="fas fa-hand-holding-usd"></i> <span class="product-price"><small>$250.00</small>$230.99</li>
++            </ul>
++
++            <div id="product">
++                <div class="input-group mb-3">
++                    <input id="input-quantity" type="text" class="form-control" name="quantity" value="1">
++                    <button class="btn btn-danger" type="button" id="button-addon2">Купить</button>
++                </div>
++            </div>
++
++        </div>
++
++        <div class="col-md-8 order-md-1">
++
++            <ul class="thumbnails list-unstyled clearfix">
++                <li class="thumb-main text-center"><a class="thumbnail" href="img/products/apple_cinema_30.jpg" data-effect="mfp-zoom-in"><img src="img/products/imac_1.jpg" alt=""></a></li>
++
++                <li class="thumb-additional"><a class="thumbnail" href="img/products/1.jpg" data-effect="mfp-zoom-in"><img src="img/products/1.jpg" alt=""></a></li>
++                <li class="thumb-additional"><a class="thumbnail" href="img/products/2.jpg" data-effect="mfp-zoom-in"><img src="img/products/2.jpg" alt=""></a></li>
++                <li class="thumb-additional"><a class="thumbnail" href="img/products/3.jpg" data-effect="mfp-zoom-in"><img src="img/products/3.jpg" alt=""></a></li>
++                <li class="thumb-additional"><a class="thumbnail" href="img/products/4.jpg" data-effect="mfp-zoom-in"><img src="img/products/4.jpg" alt=""></a></li>
++            </ul>
++
++            <p>Lorem ipsum dolor, sit amet consectetur adipisicing elit. Quasi quas esse at odio modi enim, libero, inventore veniam eveniet! Nesciunt incidunt perferendis earum cum minus assumenda fugit labore quidem rem.</p>
++            <p>Aliquam voluptatem, dignissimos eaque, cum adipisci esse fugit illo ea quae perspiciatis suscipit. Nesciunt aspernatur similique recusandae, vitae maiores sit accusantium! Nostrum, aliquam ad quisquam corrupti itaque, eveniet quo velit!</p>
++            <p>Explicabo, culpa, sit! Quod eum, aperiam odit reiciendis repellendus vitae, quam laboriosam possimus fugiat rerum facilis dolor, molestiae magnam culpa numquam praesentium soluta molestias quaerat officiis, fuga aliquam! Quidem, possimus.</p>
++            <p>Quo nihil in doloremque, cupiditate quam sunt inventore, nesciunt asperiores provident deleniti, explicabo fugit maiores accusantium omnis sed amet? Quos optio sit delectus architecto vero accusantium tenetur, ducimus, nobis ad.</p>
++            <p>Asperiores, commodi provident eum sed repellat ut recusandae optio est dicta praesentium facere culpa unde obcaecati eveniet laborum amet nulla distinctio consectetur, iste, ipsum, soluta. Explicabo, repudiandae nemo ab quasi.</p>
++
++
++        </div>
++
++    </div>
++</div>
+\ No newline at end of file
+diff --git a/www/app/views/parts/header.php b/www/app/views/parts/header.php
+index d78af11..785faf7 100644
+--- a/www/app/views/parts/header.php
++++ b/www/app/views/parts/header.php
+@@ -1,12 +1,15 @@
+ <?php
+ 
+-/** @var wfm\View $this */
++/** 
++ * @var wfm\View $this
++ * 
++ */
+ ?>
+ <!doctype html>
+ <html lang="en">
+ 
+ <head>
+-    <base href="/">
++    <base href="<?= base_url() ?>">
+     <meta charset="utf-8">
+     <meta name="viewport" content="width=device-width, initial-scale=1">
+     <link rel="stylesheet" href="<?= PATH ?>/assets/bootstrap/css/bootstrap.min.css">
+@@ -33,7 +36,7 @@
+                     <div class="col text-end icons">
+                         <form>
+                             <div class="input-group" id="search">
+-                                <input type="text" class="form-control" placeholder="Search..." name="s">
++                                <input type="text" class="form-control" placeholder="<?= ___('tpl_search') ?>" name="s">
+                                 <button class="btn close-search" type="button"><i class="fas fa-times"></i></i></button>
+                                 <button class="btn" type="submit"><i class="fas fa-search"></i></button>
+                             </div>
+@@ -53,23 +56,12 @@
+                                 <i class="far fa-user"></i>
+                             </a>
+                             <ul class="dropdown-menu">
+-                                <li><a class="dropdown-item" href="#">Авторизация</a></li>
+-                                <li><a class="dropdown-item" href="#">Регистрация</a></li>
++                                <li><a class="dropdown-item" href="#"><?= ___('tpl_login') ?></a></li>
++                                <li><a class="dropdown-item" href="#"><?= ___('tpl_signup') ?></a></li>
+                             </ul>
+                         </div>
+ 
+-                        <div class="dropdown d-inline-block">
+-                            <a href="#" class="dropdown-toggle" data-bs-toggle="dropdown">
+-                                <img src="<?= PATH ?>/assets/img/ru.png" alt="">
+-                            </a>
+-                            <ul class="dropdown-menu" id="languages">
+-                                <li>
+-                                    <button class="dropdown-item" data-langcode="en">
+-                                        <img src="<?= PATH ?>/assets/img/en.png" alt="">
+-                                        English</button>
+-                                </li>
+-                            </ul>
+-                        </div>
++                        <?php new \app\widgets\language\Language() ?>
+ 
+                     </div>
+                 </div>
+@@ -81,7 +73,7 @@
+ 
+                 <nav class="navbar navbar-expand-lg navbar-light">
+                     <div class="container-fluid p-0">
+-                        <a class="navbar-brand" href="index.html">Shop Brand</a>
++                        <a class="navbar-brand" href="<?= base_url() ?>"><?= \wfm\App::$app->getProperty('site_name') ?></a>
+                         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+                             <span class="navbar-toggler-icon"></span>
+                         </button>
+diff --git a/www/app/widgets/language/Language.php b/www/app/widgets/language/Language.php
+new file mode 100644
+index 0000000..96bf124
+--- /dev/null
++++ b/www/app/widgets/language/Language.php
+@@ -0,0 +1,61 @@
++<?php
++
++declare(strict_types=1);
++
++namespace app\widgets\language;
++
++use Exception;
++use RedBeanPHP\R;
++use wfm\App;
++
++class Language
++{
++    protected string $tpl;
++    protected array $languages;
++    protected array $language;
++
++    public function __construct()
++    {
++        $this->tpl = __DIR__ . '/lang_tpl.php';
++        $this->run();
++    }
++
++    protected function run(): void
++    {
++        $this->languages = App::$app->getProperty('languages');
++        $this->language = App::$app->getProperty('language');
++        echo $this->getHtml();
++    }
++
++    public static function getLanguages(): array
++    {
++        return R::getAssoc("SELECT code, title, base, id
++            FROM language
++            ORDER BY base
++            DESC");
++    }
++
++    public static function getLanguage($languages): array
++    {
++        $lang = App::$app->getProperty('lang');
++        if ($lang && array_key_exists($lang, $languages)) {
++            $key = $lang;
++        } elseif (!$lang) {
++            $key = key($languages);
++        } else {
++            $lang = h($lang);
++            throw new Exception("Language \"$lang\" is not found", 404);
++        }
++        $lang_info = $languages[$key];
++        $lang_info['code'] = $key;
++        return $lang_info;
++    }
++
++    public function getHtml(): string
++    {
++        ob_start();
++        require_once $this->tpl;
++        $content = ob_get_clean();
++        return $content;
++    }
++}
+diff --git a/www/app/widgets/language/lang_tpl.php b/www/app/widgets/language/lang_tpl.php
+new file mode 100644
+index 0000000..7746c6b
+--- /dev/null
++++ b/www/app/widgets/language/lang_tpl.php
+@@ -0,0 +1,28 @@
++<?php
++
++use wfm\App;
++
++/**
++ * @var \app\widgets\language\Language $this
++ */
++?>
++<div class="dropdown d-inline-block">
++    <a href="#" class="dropdown-toggle" data-bs-toggle="dropdown">
++        <img src="<?= PATH ?>/assets/img/lang/<?= App::$app->getProperty('language')['code'] ?>.png" alt="">
++    </a>
++
++    <ul class="dropdown-menu" id="languages">
++        <?php foreach ($this->languages as $k => $v): ?>
++            <?php
++            if (App::$app->getProperty('language')['code'] === $k) {
++                continue;
++            }
++            ?>
++            <li>
++                <button class="dropdown-item" data-langcode="<?= $k ?>">
++                    <img src="<?= PATH ?>/assets/img/lang/<?= $k ?>.png" alt="">
++                    <?= $v['title'] ?></button>
++            </li>
++        <?php endforeach; ?>
++    </ul>
++</div>
+\ No newline at end of file
+diff --git a/www/config/routes.php b/www/config/routes.php
+index 39ed5b7..75e3de2 100644
+--- a/www/config/routes.php
++++ b/www/config/routes.php
+@@ -6,5 +6,6 @@ use wfm\Router;
+ 
+ Router::add('^admin/?$', ['controller' => 'Main', 'action' => 'index', 'admin_prefix' => 'admin']);
+ Router::add('^admin/(?P<controller>[a-z-]+)/?(?P<action>[a-z-]+)?$', ['admin_prefix' => 'admin']);
+-Router::add('^$', ['controller' => 'Main', 'action' => 'index']);
++Router::add('^(?<lang>[a-z]+)?/?product/(?<slug>[a-z0-9-]+)/?$', ['controller' => 'Product', 'action' => 'view']);
++Router::add('^(?P<lang>[a-z]+)?/?$', ['controller' => 'Main', 'action' => 'index']);
+ Router::add('^(?P<controller>[a-z-]+)/(?P<action>[a-z-]+)/?$');
+diff --git a/www/public/assets/img/en.png b/www/public/assets/img/lang/en.png
+similarity index 100%
+rename from www/public/assets/img/en.png
+rename to www/public/assets/img/lang/en.png
+diff --git a/www/public/assets/img/ru.png b/www/public/assets/img/lang/ru.png
+similarity index 100%
+rename from www/public/assets/img/ru.png
+rename to www/public/assets/img/lang/ru.png
+diff --git a/www/public/assets/js/main.js b/www/public/assets/js/main.js
+index ae6f99f..2bd9a33 100755
+--- a/www/public/assets/js/main.js
++++ b/www/public/assets/js/main.js
+@@ -39,5 +39,9 @@ $(function () {
+         }
+     });
+ 
++    $('#languages button').on('click', function () {
++        const lang_code = $(this).data('langcode');
++        window.location = PATH + '/language/change?lang=' + lang_code
++    })
+ 
+-});
++});
+\ No newline at end of file
+diff --git a/www/vendor/wfm/Language.php b/www/vendor/wfm/Language.php
+new file mode 100644
+index 0000000..8cc5791
+--- /dev/null
++++ b/www/vendor/wfm/Language.php
+@@ -0,0 +1,34 @@
++<?php
++
++declare(strict_types=1);
++
++namespace wfm;
++
++class Language
++{
++    public static array $lang_data = [];
++    public static array $lang_layout = [];
++    public static array $lang_view = [];
++
++    public static function load(string $code, array $view): void
++    {
++        $lang_layout = sprintf('%s/languages/%s.php', APP, $code);
++        $lang_view = sprintf('%s/languages/%s/%s/%s.php', APP, $code, $view['controller'], $view['action']);
++        if (is_file($lang_layout)) {
++            self::$lang_layout = require_once $lang_layout;
++        }
++        if (is_file($lang_view)) {
++            self::$lang_view = require_once $lang_view;
++        }
++
++        self::$lang_data = array_merge(self::$lang_layout, self::$lang_view);
++    }
++
++    public static function get(string $key): string
++    {
++        if (isset(self::$lang_data[$key])) {
++            return self::$lang_data[$key];
++        }
++        return $key;
++    }
++}
+diff --git a/www/vendor/wfm/Router.php b/www/vendor/wfm/Router.php
+index 3ffde60..85798b9 100644
+--- a/www/vendor/wfm/Router.php
++++ b/www/vendor/wfm/Router.php
+@@ -42,6 +42,9 @@ class Router
+     {
+         $url = self::removeQueryString($url);
+         if (self::matchRoute($url)) {
++            if (!empty(self::$route['lang'])) {
++                App::$app->setProperty('lang', self::$route['lang']);
++            }
+             $route = self::$route;
+             $controller = '\app\controllers\\' .
+                 $route['admin_prefix'] .
+diff --git a/www/vendor/wfm/helpers/functions.php b/www/vendor/wfm/helpers/functions.php
+index d48e5d8..518ad2f 100644
+--- a/www/vendor/wfm/helpers/functions.php
++++ b/www/vendor/wfm/helpers/functions.php
+@@ -17,3 +17,66 @@ function h(string $str): string
+     $str = htmlspecialchars($str);
+     return $str;
+ }
++
++function redirect(string $http = ''): void
++{
++    if ($http !== '') {
++        header("Location: $http");
++        die;
++    }
++
++    if (isset($_SERVER['HTTP_REFERER'])) {
++        header("Location: " . $_SERVER['HTTP_REFERER']);
++        die;
++    }
++
++    header("Location: " . PATH);
++    die;
++}
++
++function base_url(): string
++{
++    $lang = \wfm\App::$app->getProperty('lang');
++    if ($lang === null) {
++        $lang = '';
++    } else {
++        $lang = "$lang/";
++    }
++    return sprintf('%s/%s', PATH, $lang);
++}
++
++function get(string $key, string $type = 'i'): mixed
++{
++    $param = $key;
++    $$param = $_GET[$param] ?? '';
++    if ($type === 'i') {
++        return (int) $$param;
++    } elseif ($type === 'f') {
++        return (float) $$param;
++    } else {
++        return trim($$param);
++    }
++}
++
++function post(string $key, string $type = 's'): mixed
++{
++    $param = $key;
++    $$param = $_POST[$param] ?? '';
++    if ($type === 'i') {
++        return (int)$$param;
++    } elseif ($type === 'f') {
++        return (float)$$param;
++    } else {
++        return trim($$param);
++    }
++}
++
++function __(string $key): void
++{
++    echo \wfm\Language::get($key);
++}
++
++function ___(string $key): string
++{
++    return \wfm\Language::get($key);
++}
