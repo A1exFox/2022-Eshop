@@ -30,7 +30,7 @@ class Router
     {
         if (strlen($url) > 0) {
             $params = explode("&", $url, 2);
-            if (false == str_contains($params[0], "=")) {
+            if (false === str_contains($params[0], "=")) {
                 $params[0] = rtrim($params[0], '/');
                 return $params[0];
             }

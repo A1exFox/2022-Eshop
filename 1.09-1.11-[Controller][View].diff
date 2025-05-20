@@ -1,0 +1,175 @@
+diff --git a/www/app/controllers/MainController.php b/www/app/controllers/MainController.php
+index caa7c0b..ae4553e 100644
+--- a/www/app/controllers/MainController.php
++++ b/www/app/controllers/MainController.php
+@@ -6,7 +6,7 @@ namespace app\controllers;
+ 
+ use wfm\Controller;
+ 
+-class MainController
++class MainController extends Controller
+ {
+     public function indexAction() {}
+ }
+diff --git a/www/app/controllers/admin/MainController.php b/www/app/controllers/admin/MainController.php
+index 94361cf..8b23900 100644
+--- a/www/app/controllers/admin/MainController.php
++++ b/www/app/controllers/admin/MainController.php
+@@ -6,7 +6,7 @@ namespace app\controllers\admin;
+ 
+ use wfm\Controller;
+ 
+-class MainController
++class MainController extends Controller
+ {
+     public function indexAction()
+     {
+diff --git a/www/vendor/wfm/Controller.php b/www/vendor/wfm/Controller.php
+new file mode 100644
+index 0000000..8b87eab
+--- /dev/null
++++ b/www/vendor/wfm/Controller.php
+@@ -0,0 +1,55 @@
++<?php
++
++declare(strict_types=1);
++
++namespace wfm;
++
++abstract class Controller
++{
++    public array $route = [];
++    public array $data = [];
++    public array $meta = ['title' => '', 'description' => '', 'keywords' => ''];
++    public string|false $layout = '';
++    public string|false $view = '';
++    public object $model;
++
++    public function __construct(array $route)
++    {
++        $this->route = $route;
++    }
++
++    public function getModel(): void
++    {
++        $model = 'app\models\\' .
++            $this->route['admin_prefix'] .
++            $this->route['controller'];
++
++        if (class_exists($model)) {
++            $this->model = new $model();
++        }
++    }
++
++    public function getView(): void
++    {
++        if ($this->view === '') {
++            $this->view = $this->route['action'];
++        }
++        $view = new View($this->route, $this->layout, $this->view, $this->meta);
++        $view->render($this->data);
++    }
++
++    public function set(array $data): void
++    {
++        $this->data = $data;
++    }
++
++    public function setMeta(
++        string $title = '',
++        string $description = '',
++        string $keywords = ''
++    ): void {
++        $this->meta['title'] = $title;
++        $this->meta['description'] = $description;
++        $this->meta['keywords'] = $keywords;
++    }
++}
+diff --git a/www/vendor/wfm/Router.php b/www/vendor/wfm/Router.php
+index 7bf3b7e..3ffde60 100644
+--- a/www/vendor/wfm/Router.php
++++ b/www/vendor/wfm/Router.php
+@@ -48,10 +48,15 @@ class Router
+                 $route['controller'] .
+                 'Controller';
+             if (class_exists($controller)) {
++                /** @var Controller $controllerObject */
+                 $controllerObject = new $controller($route);
++
++                $controllerObject->getModel();
++
+                 $action = self::lowerCamelCase($route['action'] . 'Action');
+                 if (method_exists($controllerObject, $action)) {
+                     $controllerObject->$action();
++                    $controllerObject->getView();
+                 } else {
+                     throw new Exception("Action $controller::$action is not found", 404);
+                 }
+diff --git a/www/vendor/wfm/View.php b/www/vendor/wfm/View.php
+new file mode 100644
+index 0000000..a5377ab
+--- /dev/null
++++ b/www/vendor/wfm/View.php
+@@ -0,0 +1,62 @@
++<?php
++
++declare(strict_types=1);
++
++namespace wfm;
++
++use Exception;
++
++class View
++{
++    public string $content = '';
++
++    public array $route;
++    public string|false $layout;
++    public string $view;
++    public array $meta;
++
++    public function __construct(
++        array $route,
++        string $layout = '',
++        string $view = '',
++        array $meta = []
++    ) {
++        $this->route = $route;
++        $this->layout = $layout;
++        $this->view = $view;
++        $this->meta = $meta;
++
++        if ($this->layout !== false) {
++            if ($this->layout === '') {
++                $this->layout = LAYOUT;
++            }
++        }
++    }
++
++    public function render(array $data): void
++    {
++        extract($data);
++        $prefix = str_replace("\\", '/', $this->route['admin_prefix']);
++
++        $viewFile = APP . "/views/$prefix" .
++            $this->route['controller'] . '/' .
++            $this->view . '.php';
++
++        if (!is_file($viewFile)) {
++            throw new Exception("View file $viewFile is not found", 404);
++        }
++
++        ob_start();
++        require_once $viewFile;
++        $this->content = ob_get_clean();
++
++        if (false !== $this->layout) {
++            $layoutFile = APP . '/views/layouts/' . $this->layout . '.php';
++            if (is_file($layoutFile)) {
++                require_once $layoutFile;
++            } else {
++                throw new Exception("Layout $layoutFile is not found", 404);
++            }
++        }
++    }
++}

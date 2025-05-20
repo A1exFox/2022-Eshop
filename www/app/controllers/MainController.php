@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace app\controllers;
 
+use wfm\Controller;
+
 class MainController
 {
-    public function indexAction()
-    {
-        echo __METHOD__;
-    }
+    public function indexAction() {}
 }
