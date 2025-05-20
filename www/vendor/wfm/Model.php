@@ -19,8 +19,9 @@ abstract class Model
         Db::getInstance();
     }
 
-    public function load(array $data)
+    public function load($post = true)
     {
+        $data = $post ? $_POST : $_GET;
         foreach (array_keys($this->attributes) as $name) {
             if (isset($data[$name])) {
                 $this->attributes[$name] = $data[$name];

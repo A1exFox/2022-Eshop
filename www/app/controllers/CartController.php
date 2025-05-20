@@ -77,11 +77,10 @@ class CartController extends AppController
         if (!empty($_POST)) {
             if (!\app\models\User::checkAuth()) {
                 $user = new \app\models\User();
-                $data = $_POST;
-                $user->load($data);
-                if (!$user->validate($data) || !$user->checkUnique(___('cart_checkout_error_email_unique'))) {
+                $user->load();
+                if (!$user->validate($user->attributes) || !$user->checkUnique(___('cart_checkout_error_email_unique'))) {
                     $user->getErrors();
-                    $_SESSION['form_data'] = $data;
+                    $_SESSION['form_data'] = $user->attributes;
                     redirect();
                 } else {
                     $user->attributes['password'] = password_hash(

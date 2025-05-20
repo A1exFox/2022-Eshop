@@ -17,11 +17,10 @@ class UserController extends AppController
         }
 
         if (!empty($_POST)) {
-            $data = $_POST;
-            $this->model->load($data);
-            if (false === $this->model->validate($data) || !$this->model->checkUnique()) {
+            $this->model->load();
+            if (false === $this->model->validate($this->model->attributes) || !$this->model->checkUnique()) {
                 $this->model->getErrors();
-                $_SESSION['form_data'] = $data;
+                $_SESSION['form_data'] = $this->model->attributes;
             } else {
                 $pass = $this->model->attributes['password'];
                 $this->model->attributes['password'] = password_hash($pass, PASSWORD_DEFAULT);

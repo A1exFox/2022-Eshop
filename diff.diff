@@ -1,0 +1,745 @@
+diff --git a/www/app/controllers/UserController.php b/www/app/controllers/UserController.php
+index 4f1a052..68d7630 100644
+--- a/www/app/controllers/UserController.php
++++ b/www/app/controllers/UserController.php
+@@ -5,11 +5,55 @@ declare(strict_types=1);
+ namespace app\controllers;
+ 
+ use app\models\User;
++use Exception;
++use wfm\App;
++use wfm\Pagination;
+ 
+ /** @property \app\models\User $model */
+ 
+ class UserController extends AppController
+ {
++
++    public function credentialsAction()
++    {
++        if (!User::checkAuth()) {
++            redirect(base_url() . '/user/login');
++        }
++
++        if (!empty($_POST)) {
++
++            $this->model->load();
++
++            if (empty($this->model->attributes['password'])) {
++                unset($this->model->attributes['password']);
++            }
++            unset($this->model->attributes['email']);
++
++            if (false === $this->model->validate($this->model->attributes)) {
++                $this->model->getErrors();
++            } else {
++                if (!empty($this->model->attributes['password'])) {
++                    $pass = $this->model->attributes['password'];
++                    $this->model->attributes['password'] = password_hash($pass, PASSWORD_DEFAULT);
++                }
++
++                if ($this->model->update('user', (int)$_SESSION['user']['id'])) {
++                    $_SESSION['success'] = ___('user_credentials_success');
++                    foreach ($this->model->attributes as $k => $v) {
++                        if (!empty($v) && $k != 'password') {
++                            $_SESSION['user'][$k] = $v;
++                        }
++                    }
++                } else {
++                    $_SESSION['errors'] = ___('user_credentials_error');
++                }
++            }
++            redirect();
++        }
++
++        $this->setMeta(___('user_credentials_title'));
++    }
++
+     public function signupAction()
+     {
+         if (User::checkAuth()) {
+@@ -61,4 +105,95 @@ class UserController extends AppController
+         }
+         redirect(base_url() . 'user/login');
+     }
++
++    public function cabinetAction()
++    {
++        if (!User::checkAuth()) {
++            redirect(base_url() . 'user/login');
++        }
++        $this->setMeta(___('tpl_cabinet'));
++    }
++
++    public function ordersAction()
++    {
++        if (!User::checkAuth()) {
++            redirect(base_url() . '/user/login');
++        }
++
++        $user_id = (int)$_SESSION['user']['id'];
++        $page = get('page');
++        $perpage = App::$app->getProperty('pagination');
++        // $perpage = 1;
++        $total = $this->model->get_count_orders($user_id);
++        $pagination = new Pagination($page, $perpage, $total);
++        $start = $pagination->getStart();
++
++        $orders = $this->model->get_user_orders($start, $perpage, $user_id);
++
++        $this->setMeta(___('user_orders_title'));
++        $this->set(compact('orders', 'pagination', 'total'));
++    }
++
++    public function orderAction()
++    {
++        if (!User::checkAuth()) {
++            redirect(base_url() . '/user/login');
++        }
++
++        $id = get('id');
++        $order = $this->model->get_user_order($id);
++        if (empty($order)) {
++            throw new Exception("Order \"$id\" is not found", 404);
++        }
++
++        $this->setMeta(___('user_order_title'));
++        $this->set(compact('order'));
++    }
++
++    public function filesAction()
++    {
++        if (!User::checkAuth()) {
++            redirect(base_url() . '/user/login');
++        }
++
++        $lang = App::$app->getProperty('language');
++        $page = get('page');
++        $perpage = App::$app->getProperty('pagination');
++        // $perpage = 1;
++        $total = $this->model->get_count_files();
++        $pagination = new Pagination($page, $perpage, $total);
++        $start = $pagination->getStart();
++
++        $files = $this->model->get_user_files($start, $perpage, $lang);
++
++        $this->setMeta(___('user_files_title'));
++        $this->set(compact('files', 'pagination', 'total'));
++    }
++
++    public function downloadAction()
++    {
++        if (!User::checkAuth()) {
++            redirect(base_url() . '/user/login');
++        }
++
++        $id = get('id');
++        $lang = App::$app->getProperty('language');
++        $file = $this->model->get_user_file($id, $lang);
++        if ($file) {
++            $path = sprintf('%s/downloads/%s', WWW, $file['filename']);
++            if (is_file($path)) {
++                header("Content-Type: application/octet-stream");
++                header("Content-Disposition: attachment; filename=\"" . basename($file['original_name']) . "\"");
++                header("Expires: 0");
++                header("Cache-Control: must-revalidate, post-check=0, pre-check=0");
++                header("Pragma: public");
++                header("Content-Length: " . filesize($path));
++                readfile($path);
++                exit();
++            } else {
++                $_SESSION['errors'] = ___('user_download_error');
++            }
++        }
++        redirect();
++    }
+ }
+diff --git a/www/app/models/User.php b/www/app/models/User.php
+index 04f1d2c..446a265 100644
+--- a/www/app/models/User.php
++++ b/www/app/models/User.php
+@@ -21,6 +21,7 @@ class User extends AppModel
+         'lengthMin' => [
+             ['password', 6],
+         ],
++        'optional' => ['email', 'password',],
+     ];
+ 
+     public array $labels = [
+@@ -69,4 +70,76 @@ class User extends AppModel
+         }
+         return false;
+     }
++
++    public function get_count_orders(int $user_id): int
++    {
++        $count = R::count('orders', 'user_id = ?', [$user_id]);
++        return $count;
++    }
++
++    public function get_user_orders(int $start, int $perpage, int $user_id): array
++    {
++        $sql = "SELECT *
++            FROM orders
++            WHERE user_id = ?
++                ORDER BY id DESC
++                LIMIT $start, $perpage";
++        $query = R::getAll($sql, [$user_id]);
++        return $query;
++    }
++
++    public function get_user_order(int $id): array
++    {
++        $sql = "SELECT o.*, op.*
++            FROM orders o
++            JOIN order_product op
++                ON o.id = op.order_id
++            WHERE o.id = ?";
++
++        $all = R::getAll($sql, [$id]);
++
++        return $all;
++    }
++
++    public function get_count_files(): int
++    {
++        $count = R::count('order_download', 'user_id = ? AND status = 1', [$_SESSION['user']['id']]);
++        return $count;
++    }
++
++    public function get_user_files(int $start, int $perpage, array $lang): array
++    {
++        $sql = "SELECT od.*, d.*, dd.*
++            FROM order_download od
++            JOIN download d
++                ON d.id = od.download_id
++            JOIN download_description dd
++                ON d.id = dd.download_id
++            WHERE od.user_id = ?
++                AND od.status = 1
++                AND dd.language_id = ?
++                LIMIT $start,$perpage";
++
++        $all = R::getAll($sql, [$_SESSION['user']['id'], $lang['id']]);
++
++        return $all;
++    }
++
++    public function get_user_file(int $id, array $lang): array
++    {
++        $sql = "SELECT od.*, d.*, dd.*
++            FROM order_download od
++            JOIN download d
++                ON d.id = od.download_id
++            JOIN download_description dd
++                ON d.id = dd.download_id
++            WHERE od.user_id = ?
++                AND od.status = 1
++                AND od.download_id = ?
++                AND dd.language_id = ?";
++
++        $row = R::getRow($sql, [$_SESSION['user']['id'], $id, $lang['id']]);
++
++        return $row;
++    }
+ }
+diff --git a/www/app/views/User/cabinet.php b/www/app/views/User/cabinet.php
+index f92082e..4e1ff64 100644
+--- a/www/app/views/User/cabinet.php
++++ b/www/app/views/User/cabinet.php
+@@ -1,11 +1,11 @@
+-
++<?php
+ /** @var $this \wfm\View */
+-
++?>
+ <div class="container">
+     <nav aria-label="breadcrumb">
+         <ol class="breadcrumb bg-light p-2">
+             <li class="breadcrumb-item"><a href="./"><i class="fas fa-home"></i></a></li>
+-            <li class="breadcrumb-item active"> __('tpl_cabinet'); </li>
++            <li class="breadcrumb-item active"><?php __('tpl_cabinet'); ?></li>
+         </ol>
+     </nav>
+ </div>
+@@ -14,17 +14,17 @@
+     <div class="row">
+ 
+         <div class="col-12">
+-            <h1 class="section-title"> __('tpl_cabinet'); </h1>
++            <h1 class="section-title"><?php __('tpl_cabinet'); ?></h1>
+         </div>
+ 
+-         $this->getPart('parts/cabinet_sidebar'); 
++        <?php $this->getPart('parts/cabinet_sidebar'); ?>
+ 
+         <div class="col-md-9 order-md-1">
+             <ul class="list-unstyled">
+-                <li><a href="user/orders"> __('tpl_orders'); </a></li>
+-                <li><a href="user/files"> __('tpl_orders_files'); </a></li>
+-                <li><a href="user/credentials"> __('tpl_user_credentials'); </a></li>
+-                <li><a href="user/logout"> __('tpl_user_logout'); </a></li>
++                <li><a href="user/orders"><?php __('tpl_orders'); ?></a></li>
++                <li><a href="user/files"><?php __('tpl_orders_files'); ?></a></li>
++                <li><a href="user/credentials"><?php __('tpl_user_credentials'); ?></a></li>
++                <li><a href="user/logout"><?php __('tpl_user_logout'); ?></a></li>
+             </ul>
+         </div>
+     </div>
+diff --git a/www/app/views/User/credentials.php b/www/app/views/User/credentials.php
+index 68a913c..ae42658 100644
+--- a/www/app/views/User/credentials.php
++++ b/www/app/views/User/credentials.php
+@@ -1,13 +1,13 @@
+-
++<?php
+ 
+ /** @var $this \wfm\View */
+-
++?>
+ <div class="container">
+     <nav aria-label="breadcrumb">
+         <ol class="breadcrumb bg-light p-2">
+             <li class="breadcrumb-item"><a href="./"><i class="fas fa-home"></i></a></li>
+-            <li class="breadcrumb-item"><a href="user/cabinet"> __('tpl_cabinet'); </a></li>
+-            <li class="breadcrumb-item active"> __('user_credentials_title'); </li>
++            <li class="breadcrumb-item"><a href="user/cabinet"><?php __('tpl_cabinet'); ?></a></li>
++            <li class="breadcrumb-item active"><?php __('user_credentials_title'); ?></li>
+         </ol>
+     </nav>
+ </div>
+@@ -16,10 +16,10 @@
+     <div class="row">
+ 
+         <div class="col-12">
+-            <h1 class="section-title"> __('user_credentials_title'); </h1>
++            <h1 class="section-title"><?php __('user_credentials_title'); ?></h1>
+         </div>
+ 
+-         $this->getPart('parts/cabinet_sidebar'); 
++        <?php $this->getPart('parts/cabinet_sidebar'); ?>
+ 
+         <div class="col-md-9 order-md-1">
+ 
+@@ -27,37 +27,37 @@
+ 
+                 <div class="col-md-6 offset-md-3">
+                     <div class="form-floating mb-3">
+-                        <input type="email" name="email" class="form-control" id="email" placeholder="name@example.com" value=" h($_SESSION['user']['email']) " disabled>
+-                        <label for="email"> __('tpl_signup_email_input'); </label>
++                        <input type="email" name="email" class="form-control" id="email" placeholder="name@example.com" value="<?= h($_SESSION['user']['email']) ?>" disabled>
++                        <label for="email"><?php __('tpl_signup_email_input'); ?></label>
+                     </div>
+                 </div>
+ 
+                 <div class="col-md-6 offset-md-3">
+                     <div class="form-floating mb-3">
+                         <input type="password" name="password" class="form-control" id="password" placeholder="password">
+-                        <label for="password"> __('tpl_signup_password_input'); </label>
++                        <label for="password"><?php __('tpl_signup_password_input'); ?></label>
+                     </div>
+                 </div>
+ 
+                 <div class="col-md-6 offset-md-3">
+                     <div class="form-floating mb-3">
+-                        <input type="text" name="name" class="form-control" id="name" placeholder="Name" value=" h($_SESSION['user']['name']) " required>
+-                        <label for="name"> __('tpl_signup_name_input'); </label>
++                        <input type="text" name="name" class="form-control" id="name" placeholder="Name" value="<?= h($_SESSION['user']['name']) ?>" required>
++                        <label for="name"><?php __('tpl_signup_name_input'); ?></label>
+                     </div>
+                 </div>
+ 
+                 <div class="col-md-6 offset-md-3">
+                     <div class="form-floating mb-3">
+-                        <input type="text" name="address" class="form-control" id="addres" placeholder="Address" value=" h($_SESSION['user']['address']) " required>
+-                        <label for="address"> __('tpl_signup_address_input'); </label>
++                        <input type="text" name="address" class="form-control" id="addres" placeholder="Address" value="<?= h($_SESSION['user']['address']) ?>" required>
++                        <label for="address"><?php __('tpl_signup_address_input'); ?></label>
+                     </div>
+                 </div>
+ 
+                 <div class="col-md-6 offset-md-3">
+-                    <button type="submit" class="btn btn-danger"> __('user_credentials_save_btn'); </button>
++                    <button type="submit" class="btn btn-danger"><?php __('user_credentials_save_btn'); ?></button>
+                 </div>
+             </form>
+ 
+         </div>
+     </div>
+-</div>
++</div>
+\ No newline at end of file
+diff --git a/www/app/views/User/files.php b/www/app/views/User/files.php
+index 827ace3..5ac3ef1 100644
+--- a/www/app/views/User/files.php
++++ b/www/app/views/User/files.php
+@@ -1,17 +1,17 @@
+-
++<?php
+ 
+ /**
+  * @var \wfm\View $this
+  * @var \wfm\Pagination $pagination
+  * @var array $files
+  */
+-
++?>
+ <div class="container">
+     <nav aria-label="breadcrumb">
+         <ol class="breadcrumb bg-light p-2">
+             <li class="breadcrumb-item"><a href="./"><i class="fas fa-home"></i></a></li>
+-            <li class="breadcrumb-item"><a href="user/cabinet"> __('tpl_cabinet'); </a></li>
+-            <li class="breadcrumb-item active"> __('user_files_title'); </li>
++            <li class="breadcrumb-item"><a href="user/cabinet"><?php __('tpl_cabinet'); ?></a></li>
++            <li class="breadcrumb-item active"><?php __('user_files_title'); ?></li>
+         </ol>
+     </nav>
+ </div>
+@@ -20,49 +20,49 @@
+     <div class="row">
+ 
+         <div class="col-12">
+-            <h1 class="section-title"> __('user_files_title'); </h1>
++            <h1 class="section-title"><?php __('user_files_title'); ?></h1>
+         </div>
+ 
+-         $this->getPart('parts/cabinet_sidebar'); 
++        <?php $this->getPart('parts/cabinet_sidebar'); ?>
+ 
+         <div class="col-md-9 order-md-1">
+ 
+-             if (!empty($files)): 
++            <?php if (!empty($files)): ?>
+ 
+                 <div class="table-responsive">
+                     <table class="table text-start table-bordered">
+                         <thead>
+                             <tr>
+-                                <th scope="col"> __('user_files_num_order'); </th>
+-                                <th scope="col"> __('user_files_name'); </th>
+-                                <th scope="col"> __('user_files_download'); </th>
++                                <th scope="col"><?php __('user_files_num_order'); ?></th>
++                                <th scope="col"><?php __('user_files_name'); ?></th>
++                                <th scope="col"><?php __('user_files_download'); ?></th>
+                             </tr>
+                         </thead>
+                         <tbody>
+-                             foreach ($files as $file): 
++                            <?php foreach ($files as $file): ?>
+                                 <tr>
+-                                    <td><a href="user/order?id= $file['order_id'] "> $file['order_id'] </a></td>
+-                                    <td> $file['name'] </td>
+-                                    <td><a href="user/download?id= $file['id'] "><i class="fas fa-download"></i></a></td>
++                                    <td><a href="user/order?id=<?= $file['order_id'] ?>"><?= $file['order_id'] ?></a></td>
++                                    <td><?= $file['name'] ?></td>
++                                    <td><a href="user/download?id=<?= $file['id'] ?>"><i class="fas fa-download"></i></a></td>
+                                 </tr>
+-                             endforeach; 
++                            <?php endforeach; ?>
+                         </tbody>
+                     </table>
+                 </div>
+ 
+                 <div class="row">
+                     <div class="col-md-12">
+-                        <p> count($files)   __('user_files_total_pagination');   $total; </p>
+-                         if ($pagination->countPages > 1): 
+-                             $pagination; 
+-                         endif; 
++                        <p><?= count($files) ?> <?php __('user_files_total_pagination'); ?> <?= $total; ?></p>
++                        <?php if ($pagination->countPages > 1): ?>
++                            <?= $pagination; ?>
++                        <?php endif; ?>
+                     </div>
+                 </div>
+ 
+-             else: 
+-                <p> __('user_files_empty'); </p>
+-             endif; 
++            <?php else: ?>
++                <p><?php __('user_files_empty'); ?></p>
++            <?php endif; ?>
+ 
+         </div>
+     </div>
+-</div>
++</div>
+\ No newline at end of file
+diff --git a/www/app/views/User/order.php b/www/app/views/User/order.php
+index 18c4aab..a16cab7 100644
+--- a/www/app/views/User/order.php
++++ b/www/app/views/User/order.php
+@@ -1,17 +1,17 @@
+-
++<?php
+ 
+ /**
+  * @var \wfm\View $this
+  * @var array $order
+  */
+-
++?>
+ <div class="container">
+     <nav aria-label="breadcrumb">
+         <ol class="breadcrumb bg-light p-2">
+             <li class="breadcrumb-item"><a href="./"><i class="fas fa-home"></i></a></li>
+-            <li class="breadcrumb-item"><a href="user/cabinet"> __('tpl_cabinet'); </a></li>
+-            <li class="breadcrumb-item"><a href="user/orders"> __('user_order_list'); </a></li>
+-            <li class="breadcrumb-item active"> __('user_order_title'); </li>
++            <li class="breadcrumb-item"><a href="user/cabinet"><?php __('tpl_cabinet'); ?></a></li>
++            <li class="breadcrumb-item"><a href="user/orders"><?php __('user_order_list'); ?></a></li>
++            <li class="breadcrumb-item active"><?php __('user_order_title'); ?></li>
+         </ol>
+     </nav>
+ </div>
+@@ -20,65 +20,65 @@
+     <div class="row">
+ 
+         <div class="col-12">
+-            <h1 class="section-title"> __('user_order_title'); </h1>
++            <h1 class="section-title"><?php __('user_order_title'); ?></h1>
+         </div>
+ 
+-         $this->getPart('parts/cabinet_sidebar'); 
++        <?php $this->getPart('parts/cabinet_sidebar'); ?>
+ 
+         <div class="col-md-9 order-md-1">
+ 
+-             if (!empty($order)): 
++            <?php if (!empty($order)): ?>
+                 <div class="table-responsive">
+                     <table class="table text-start table-bordered">
+                         <thead>
+                             <tr>
+-                                <th scope="col"> __('user_order_product_title'); </th>
+-                                <th scope="col"> __('user_order_product_price'); </th>
+-                                <th scope="col"> __('user_order_product_qty'); </th>
+-                                <th scope="col"> __('user_order_product_sum'); </th>
++                                <th scope="col"><?php __('user_order_product_title'); ?></th>
++                                <th scope="col"><?php __('user_order_product_price'); ?></th>
++                                <th scope="col"><?php __('user_order_product_qty'); ?></th>
++                                <th scope="col"><?php __('user_order_product_sum'); ?></th>
+                             </tr>
+                         </thead>
+                         <tbody>
+-                             foreach ($order as $item): 
++                            <?php foreach ($order as $item): ?>
+                                 <tr>
+-                                    <td><a href="product/ $item['slug'] "> $item['title'] </a></td>
+-                                    <td>$ $item['price'] </td>
+-                                    <td> $item['qty'] </td>
+-                                    <td>$ $item['sum'] </td>
++                                    <td><a href="product/<?= $item['slug'] ?>"><?= $item['title'] ?></a></td>
++                                    <td>$<?= $item['price'] ?></td>
++                                    <td><?= $item['qty'] ?></td>
++                                    <td>$<?= $item['sum'] ?></td>
+                                 </tr>
+-                             endforeach; 
++                            <?php endforeach; ?>
+                         </tbody>
+                     </table>
+                 </div>
+ 
+                 <div class="box">
+-                    <h3 class="box-title"> __('user_order_details'); </h3>
++                    <h3 class="box-title"><?php __('user_order_details'); ?></h3>
+                     <div class="box-content">
+                         <div class="table-responsive">
+                             <table class="table text-start table-striped">
+                                 <tr>
+-                                    <td> __('user_order_num'); </td>
+-                                    <td> $order[0]['order_id'] </td>
++                                    <td><?php __('user_order_num'); ?></td>
++                                    <td><?= $order[0]['order_id'] ?></td>
+                                 </tr>
+                                 <tr>
+-                                    <td> __('user_order_status'); </td>
+-                                    <td> __("user_order_status_{$order[0]['status']}"); </td>
++                                    <td><?php __('user_order_status'); ?></td>
++                                    <td><?php __("user_order_status_{$order[0]['status']}"); ?></td>
+                                 </tr>
+                                 <tr>
+-                                    <td> __('user_order_created'); </td>
+-                                    <td> $order[0]['created_at'] </td>
++                                    <td><?php __('user_order_created'); ?></td>
++                                    <td><?= $order[0]['created_at'] ?></td>
+                                 </tr>
+                                 <tr>
+-                                    <td> __('user_order_updated'); </td>
+-                                    <td> $order[0]['updated_at'] </td>
++                                    <td><?php __('user_order_updated'); ?></td>
++                                    <td><?= $order[0]['updated_at'] ?></td>
+                                 </tr>
+                                 <tr>
+-                                    <td> __('user_order_total'); </td>
+-                                    <td>$ $order[0]['total'] </td>
++                                    <td><?php __('user_order_total'); ?></td>
++                                    <td>$<?= $order[0]['total'] ?></td>
+                                 </tr>
+                                 <tr>
+-                                    <td> __('user_order_note'); </td>
+-                                    <td> $order[0]['note'] </td>
++                                    <td><?php __('user_order_note'); ?></td>
++                                    <td><?= $order[0]['note'] ?></td>
+                                 </tr>
+                             </table>
+                         </div>
+@@ -87,8 +87,8 @@
+                 </div>
+ 
+ 
+-             endif; 
++            <?php endif; ?>
+ 
+         </div>
+     </div>
+-</div>
++</div>
+\ No newline at end of file
+diff --git a/www/app/views/User/orders.php b/www/app/views/User/orders.php
+index 40e88b7..8cb8e93 100644
+--- a/www/app/views/User/orders.php
++++ b/www/app/views/User/orders.php
+@@ -1,4 +1,4 @@
+-
++<?php
+ 
+ /**
+  * @var \wfm\View $this
+@@ -6,13 +6,13 @@
+  * @var \wfm\Pagination $pagination
+  * @var int $total
+  */
+-
++?>
+ <div class="container">
+     <nav aria-label="breadcrumb">
+         <ol class="breadcrumb bg-light p-2">
+             <li class="breadcrumb-item"><a href="./"><i class="fas fa-home"></i></a></li>
+-            <li class="breadcrumb-item"><a href="user/cabinet"> __('tpl_cabinet'); </a></li>
+-            <li class="breadcrumb-item active"> __('user_orders_title'); </li>
++            <li class="breadcrumb-item"><a href="user/cabinet"><?php __('tpl_cabinet'); ?></a></li>
++            <li class="breadcrumb-item active"><?php __('user_orders_title'); ?></li>
+         </ol>
+     </nav>
+ </div>
+@@ -21,57 +21,57 @@
+     <div class="row">
+ 
+         <div class="col-12">
+-            <h1 class="section-title"> __('user_orders_title'); </h1>
++            <h1 class="section-title"><?php __('user_orders_title'); ?></h1>
+         </div>
+ 
+-         $this->getPart('parts/cabinet_sidebar'); 
++        <?php $this->getPart('parts/cabinet_sidebar'); ?>
+ 
+         <div class="col-md-9 order-md-1">
+ 
+-             if (!empty($orders)): 
++            <?php if (!empty($orders)): ?>
+ 
+                 <div class="table-responsive">
+                     <table class="table text-start table-bordered">
+                         <thead>
+                             <tr>
+-                                <th scope="col"> __('user_orders_num'); </th>
+-                                <th scope="col"> __('user_orders_status'); </th>
+-                                <th scope="col"> __('user_orders_total'); </th>
+-                                <th scope="col"> __('user_orders_created'); </th>
+-                                <th scope="col"> __('user_orders_updated'); </th>
++                                <th scope="col"><?php __('user_orders_num'); ?></th>
++                                <th scope="col"><?php __('user_orders_status'); ?></th>
++                                <th scope="col"><?php __('user_orders_total'); ?></th>
++                                <th scope="col"><?php __('user_orders_created'); ?></th>
++                                <th scope="col"><?php __('user_orders_updated'); ?></th>
+                                 <th scope="col"><i class="far fa-eye"></i></a></th>
+                             </tr>
+                         </thead>
+                         <tbody>
+-                             foreach ($orders as $order): 
+-                                <tr  if ($order['status']) echo 'class="table-info"' >
+-                                    <td> $order['id'] </td>
+-                                    <td> __("user_order_status_{$order['status']}"); </td>
+-                                    <td>$ $order['total'] </td>
+-                                    <td> $order['created_at'] </td>
+-                                    <td> $order['updated_at'] </td>
+-                                    <td><a href="user/order?id= $order['id'] "><i class="far fa-eye"></i></a></td>
++                            <?php foreach ($orders as $order): ?>
++                                <tr <?php if ($order['status']) echo 'class="table-info"' ?>>
++                                    <td><?= $order['id'] ?></td>
++                                    <td><?php __("user_order_status_{$order['status']}"); ?></td>
++                                    <td>$<?= $order['total'] ?></td>
++                                    <td><?= $order['created_at'] ?></td>
++                                    <td><?= $order['updated_at'] ?></td>
++                                    <td><a href="user/order?id=<?= $order['id'] ?>"><i class="far fa-eye"></i></a></td>
+                                 </tr>
+-                             endforeach; 
++                            <?php endforeach; ?>
+                         </tbody>
+                     </table>
+                 </div>
+ 
+                 <div class="row">
+                     <div class="col-md-12">
+-                        <p> count($orders)   __('user_orders_total_pagination');   $total; </p>
+-                         if ($pagination->countPages > 1): 
+-                             $pagination; 
+-                         endif; 
++                        <p><?= count($orders) ?> <?php __('user_orders_total_pagination'); ?> <?= $total; ?></p>
++                        <?php if ($pagination->countPages > 1): ?>
++                            <?= $pagination; ?>
++                        <?php endif; ?>
+                     </div>
+                 </div>
+ 
+-             else: 
+-                <p> __('user_orders_empty'); </p>
+-             endif; 
++            <?php else: ?>
++                <p><?php __('user_orders_empty'); ?></p>
++            <?php endif; ?>
+ 
+         </div>
+     </div>
+ </div>
+ 
+-
++<?php
+diff --git a/www/app/views/parts/cabinet_sidebar.php b/www/app/views/parts/cabinet_sidebar.php
+index 7749366..19ae422 100644
+--- a/www/app/views/parts/cabinet_sidebar.php
++++ b/www/app/views/parts/cabinet_sidebar.php
+@@ -1,8 +1,8 @@
+ <div class="col-md-3 order-md-2">
+     <div class="list-group">
+-        <a href="user/orders" class="list-group-item list-group-item-action"> __('tpl_orders'); </a>
+-        <a href="user/files" class="list-group-item list-group-item-action"> __('tpl_orders_files'); </a>
+-        <a href="user/credentials" class="list-group-item list-group-item-action"> __('tpl_user_credentials'); </a>
+-        <a href="user/logout" class="list-group-item list-group-item-action"> __('tpl_user_logout'); </a>
++        <a href="user/orders" class="list-group-item list-group-item-action"><?php __('tpl_orders'); ?></a>
++        <a href="user/files" class="list-group-item list-group-item-action"><?php __('tpl_orders_files'); ?></a>
++        <a href="user/credentials" class="list-group-item list-group-item-action"><?php __('tpl_user_credentials'); ?></a>
++        <a href="user/logout" class="list-group-item list-group-item-action"><?php __('tpl_user_logout'); ?></a>
+     </div>
+ </div>
+diff --git a/www/vendor/wfm/Model.php b/www/vendor/wfm/Model.php
+index 2fe95c6..af1a022 100644
+--- a/www/vendor/wfm/Model.php
++++ b/www/vendor/wfm/Model.php
+@@ -76,4 +76,15 @@ abstract class Model
+         }
+         return R::store($tbl);
+     }
++
++    public function update(string $table, int $id): int|string
++    {
++        $tbl = R::load($table, $id);
++        foreach ($this->attributes as $name => $value) {
++            if ($value != '') {
++                $tbl->$name = $value;
++            }
++        }
++        return R::store($tbl);
++    }
+ }
