@@ -1,0 +1,162 @@
+diff --git a/www/config/routes.php b/www/config/routes.php
+new file mode 100644
+index 0000000..39ed5b7
+--- /dev/null
++++ b/www/config/routes.php
+@@ -0,0 +1,10 @@
++<?php
++
++declare(strict_types=1);
++
++use wfm\Router;
++
++Router::add('^admin/?$', ['controller' => 'Main', 'action' => 'index', 'admin_prefix' => 'admin']);
++Router::add('^admin/(?P<controller>[a-z-]+)/?(?P<action>[a-z-]+)?$', ['admin_prefix' => 'admin']);
++Router::add('^$', ['controller' => 'Main', 'action' => 'index']);
++Router::add('^(?P<controller>[a-z-]+)/(?P<action>[a-z-]+)/?$');
+diff --git a/www/vendor/wfm/App.php b/www/vendor/wfm/App.php
+index 3928371..ccc3afc 100644
+--- a/www/vendor/wfm/App.php
++++ b/www/vendor/wfm/App.php
+@@ -10,9 +10,11 @@ class App
+ 
+     public function __construct()
+     {
++        $query = trim(urldecode($_SERVER['QUERY_STRING']), '/');
+         new ErrorHandler();
+         self::$app = Registry::getInstance();
+         $this->getParams();
++        Router::dispatch($query);
+     }
+ 
+     protected function getParams(): void
+diff --git a/www/vendor/wfm/Router.php b/www/vendor/wfm/Router.php
+new file mode 100644
+index 0000000..39a3e6a
+--- /dev/null
++++ b/www/vendor/wfm/Router.php
+@@ -0,0 +1,105 @@
++<?php
++
++declare(strict_types=1);
++
++namespace wfm;
++
++use Exception;
++
++class Router
++{
++    protected static array $routes = [];
++    protected static array $route = [];
++
++    public static function add(string $regexp, array $route = []): void
++    {
++        self::$routes[$regexp] = $route;
++    }
++
++    public static function getRoutes(): array
++    {
++        return self::$routes;
++    }
++
++    public static function getRoute(): array
++    {
++        return self::$route;
++    }
++
++    public static function removeQueryString(string $url): string
++    {
++        if (strlen($url) > 0) {
++            $params = explode("&", $url, 2);
++            if (false == str_contains($params[0], "=")) {
++                $params[0] = rtrim($params[0], '/');
++                return $params[0];
++            }
++        }
++        return '';
++    }
++
++    public static function dispatch(string $url): void
++    {
++        $url = self::removeQueryString($url);
++        if (self::matchRoute($url)) {
++            $route = self::$route;
++            $controller = '\app\controllers\\' .
++                $route['admin_prefix'] .
++                $route['controller'] .
++                'Controller';
++            if (class_exists($controller)) {
++                $controllerObject = new $controller($route);
++                $action = self::lowerCamelCase($route['action'] . 'Action');
++                if (method_exists($controllerObject, $action)) {
++                    $controllerObject->$action();
++                } else {
++                    throw new Exception("Action $controller::$action is not found", 404);
++                }
++            } else {
++                throw new Exception("Controller $controller is not found", 404);
++            }
++        } else {
++            throw new Exception("Page is not found", 404);
++        }
++    }
++
++    public static function matchRoute(string $url): bool
++    {
++        foreach (self::$routes as $pattern => $route) {
++            if (preg_match("#{$pattern}#", $url, $matches)) {
++                foreach ($matches as $k => $v) {
++                    if (is_string($k)) {
++                        $route[$k] = $v;
++                    }
++                }
++                if (empty($route['action'])) {
++                    $route['action'] = 'index';
++                }
++                if (!isset($route['admin_prefix'])) {
++                    $route['admin_prefix'] = '';
++                } else {
++                    $route['admin_prefix'] .= '\\';
++                }
++                $route['controller'] = self::upperCamelCase($route['controller']);
++                self::$route = $route;
++                return true;
++            }
++        }
++        return false;
++    }
++
++    protected static function upperCamelCase(string $name): string
++    {
++        $name = str_replace("-", " ", $name);
++        $name = ucwords($name);
++        $name = str_replace(" ", "", $name);
++        return $name;
++    }
++
++    protected static function lowerCamelCase(string $name): string
++    {
++        $name = self::upperCamelCase($name);
++        $name = lcfirst($name);
++        return $name;
++    }
++}
+diff --git a/www/vendor/wfm/helpers/functions.php b/www/vendor/wfm/helpers/functions.php
+new file mode 100644
+index 0000000..c1c529a
+--- /dev/null
++++ b/www/vendor/wfm/helpers/functions.php
+@@ -0,0 +1,13 @@
++<?php
++
++declare(strict_types=1);
++
++function debug(mixed $data, bool $die = false): void
++{
++    echo "<pre>";
++    echo print_r($data, true);
++    echo "</pre>";
++    if ($die == true) {
++        die;
++    }
++}
