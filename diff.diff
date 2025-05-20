@@ -1,0 +1,506 @@
+diff --git a/www/app/controllers/CartController.php b/www/app/controllers/CartController.php
+new file mode 100644
+index 0000000..a2c19f7
+--- /dev/null
++++ b/www/app/controllers/CartController.php
+@@ -0,0 +1,65 @@
++<?php
++
++declare(strict_types=1);
++
++namespace app\controllers;
++
++/** @property \app\models\Cart $model */
++
++class CartController extends AppController
++{
++    public function addAction()
++    {
++        $lang = \wfm\App::$app->getProperty('language');
++        $id = get('id');
++        $qty = get('qty');
++
++        if (!$id) {
++            return false;
++        }
++
++        $product = $this->model->get_product($id, $lang);
++
++        if (is_null($product) || count($product) === 0) {
++            return false;
++        }
++
++        $this->model->add_to_cart($product, $qty);
++
++        if ($this->isAjax()) {
++            $this->loadView('cart_modal');
++        }
++        redirect();
++    }
++
++    public function showAction()
++    {
++        $this->loadView('cart_modal');
++    }
++
++    public function deleteAction()
++    {
++        $id = get('id');
++        if (isset($_SESSION['cart'][$id])) {
++            $this->model->delete_item($id);
++        }
++        if ($this->isAjax()) {
++            $this->loadView('cart_modal');
++        }
++        redirect();
++    }
++
++    public function clearAction()
++    {
++        if (empty($_SESSION['cart'])) {
++            return false;
++        }
++
++        unset($_SESSION['cart']);
++        unset($_SESSION['cart.qty']);
++        unset($_SESSION['cart.sum']);
++
++        $this->loadView('cart_modal');
++        return true;
++    }
++}
+diff --git a/www/app/controllers/LanguageController.php b/www/app/controllers/LanguageController.php
+index 8da3e44..d75d08d 100644
+--- a/www/app/controllers/LanguageController.php
++++ b/www/app/controllers/LanguageController.php
+@@ -26,6 +26,7 @@ class LanguageController extends AppController
+                         array_unshift($url_parts, $lang);
+                     }
+                 }
++                \app\models\Cart::translate_cart(\wfm\App::$app->getProperty('languages')[$lang]);
+                 $url = PATH . '/' . implode('/', $url_parts);
+                 redirect($url);
+             }
+diff --git a/www/app/models/Cart.php b/www/app/models/Cart.php
+new file mode 100644
+index 0000000..7696508
+--- /dev/null
++++ b/www/app/models/Cart.php
+@@ -0,0 +1,89 @@
++<?php
++
++declare(strict_types=1);
++
++namespace app\models;
++
++class Cart extends AppModel
++{
++    public function get_product(int $id, array $lang): ?array
++    {
++        $sql = "SELECT p.*, pd.*
++            FROM product p
++            JOIN product_description pd
++                ON p.id = pd.product_id
++            WHERE p.status = 1
++                AND p.id = ?
++                AND pd.language_id = ?";
++        $res = \RedBeanPHP\R::getRow($sql, [$id, $lang['id']]);
++        return $res;
++    }
++
++    public function add_to_cart(array $product, int $qty = 1): bool
++    {
++        $qty = abs($qty);
++
++        if ($product['is_download'] && isset($_SESSION['cart'][$product['id']])) {
++            return false;
++        }
++
++        if (isset($_SESSION['cart'][$product['id']])) {
++            $_SESSION['cart'][$product['id']]['qty'] += $qty;
++        } else {
++            if ($product['is_download']) {
++                $qty = 1;
++            }
++            $_SESSION['cart'][$product['id']] = [
++                'title' => $product['title'],
++                'slug' => $product['slug'],
++                'price' => $product['price'],
++                'qty' => $qty,
++                'img' => $product['img'],
++                'is_download' => $product['is_download'],
++            ];
++        }
++
++        if (empty($_SESSION['cart.qty'])) {
++            $_SESSION['cart.qty'] = $qty;
++        } else {
++            $_SESSION['cart.qty'] += $qty;
++        }
++
++        if (empty($_SESSION['cart.sum'])) {
++            $_SESSION['cart.sum'] = $qty * $product['price'];
++        } else {
++            $_SESSION['cart.sum'] += $qty * $product['price'];
++        }
++
++        return true;
++    }
++
++    public function delete_item(int $id): void
++    {
++        $qty_minus = $_SESSION['cart'][$id]['qty'];
++        $sum_minus = $_SESSION['cart'][$id]['price'] * $qty_minus;
++        $_SESSION['cart.qty'] -= $qty_minus;
++        $_SESSION['cart.sum'] -= $sum_minus;
++        unset($_SESSION['cart'][$id]);
++    }
++
++    public static function translate_cart(array $lang)
++    {
++        if (empty($_SESSION['cart'])) {
++            return;
++        }
++        $ids = implode(',', array_keys($_SESSION['cart']));
++        $sql = "SELECT p.id, pd.title
++            FROM product p
++            JOIN product_description pd
++                ON p.id = pd.product_id
++            WHERE p.id 
++                    IN ($ids)
++                AND pd.language_id = ?";
++        $products = \RedBeanPHP\R::getAll($sql, [$lang['id']]);
++
++        foreach ($products as $product) {
++            $_SESSION['cart'][$product['id']]['title'] = $product['title'];
++        }
++    }
++}
+diff --git a/www/app/views/Cart/cart_modal.php b/www/app/views/Cart/cart_modal.php
+new file mode 100644
+index 0000000..45ee304
+--- /dev/null
++++ b/www/app/views/Cart/cart_modal.php
+@@ -0,0 +1,76 @@
++<div class="modal-body">
++    <?php if (!empty($_SESSION['cart'])): ?>
++        <div class="table_response cart-table">
++            <table class="table text-start">
++                <thead>
++                    <tr>
++                        <th scope="col"><?= ___('tpl_cart_photo') ?></th>
++                        <th scope="col"><?= ___('tpl_cart_product') ?></th>
++                        <th scope="col"><?= ___('tpl_cart_qty') ?></th>
++                        <th scope="col"><?= ___('tpl_cart_price') ?></th>
++                        <th scope="col"><i class="far fa-trash-alt"></i></th>
++                    </tr>
++                </thead>
++                <tbody>
++                    <?php foreach ($_SESSION['cart'] as $id => $item): ?>
++                        <tr>
++                            <td>
++                                <a href="product/<?= $item['slug'] ?>">
++                                    <img src="<?= sprintf('%s/%s', PATH, $item['img']) ?>" alt="">
++                                </a>
++                            </td>
++                            <td>
++                                <a href="product/<?= $item['slug'] ?>">
++                                    <?= $item['title'] ?>
++                                </a>
++                            </td>
++                            <td>
++                                <?= $item['qty'] ?>
++                            </td>
++                            <td>
++                                <?= $item['price'] ?>
++                            </td>
++                            <td>
++                                <a href="cart/delete?id=<?= $id ?>"
++                                    class="del-item"
++                                    data-id="<?= $id ?>">
++                                    <i class="far fa-trash-alt"></i>
++                                </a>
++                            </td>
++                        </tr>
++                    <?php endforeach; ?>
++                    <tr>
++                        <td colspan="4" class="text-end">
++                            <?= ___('tpl_cart_total_qty') ?>
++                        </td>
++                        <td class="cart-qty">
++                            <?= $_SESSION['cart.qty'] ?>
++                        </td>
++                    </tr>
++                    <tr>
++                        <td colspan="4" class="text-end">
++                            <?= ___('tpl_cart_sum') ?>
++                        </td>
++                        <td class="cart-sum">
++                            $<?= $_SESSION['cart.sum'] ?>
++                        </td>
++                    </tr>
++                </tbody>
++            </table>
++        </div>
++    <?php else: ?>
++        <h4 class="text-start"><?= ___('tpl_cart_empty') ?></h4>
++    <?php endif; ?>
++</div>
++<div class="modal-footer">
++    <button type="button" class="btn btn-success ripple" data-bs-dismiss="modal"><?= ___('tpl_cart_btn_continue') ?></button>
++    <?php if (!empty($_SESSION['cart'])): ?>
++        <button type="button" class="btn btn-primary"><?= ___('tpl_cart_btn_order') ?></button>
++        <button
++            type="button"
++            class="btn btn-danger"
++            id="clear-cart">
++            <?= ___('tpl_cart_btn_clear') ?>
++        </button>
++    <?php endif; ?>
++</div>
+\ No newline at end of file
+diff --git a/www/app/views/parts/footer.php b/www/app/views/parts/footer.php
+index 7f04316..3c60d51 100644
+--- a/www/app/views/parts/footer.php
++++ b/www/app/views/parts/footer.php
+@@ -55,51 +55,11 @@
+     <div class="modal-dialog modal-xl">
+         <div class="modal-content">
+             <div class="modal-header">
+-                <h5 class="modal-title" id="exampleModalLabel">Корзина</h5>
++                <h5 class="modal-title" id="exampleModalLabel"><?= ___('tpl_cart_title') ?></h5>
+                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+             </div>
+-            <div class="modal-body">
+-                <table class="table text-start">
+-                    <thead>
+-                        <tr>
+-                            <th scope="col">Фото</th>
+-                            <th scope="col">Товар</th>
+-                            <th scope="col">Кол-во</th>
+-                            <th scope="col">Цена</th>
+-                        </tr>
+-                    </thead>
+-                    <tbody>
+-                        <tr>
+-                            <td>
+-                                <a href="#"><img src="<?= PATH ?>/uploads/2021/11/12/apple_cinema_30.jpg" alt=""></a>
+-                            </td>
+-                            <td><a href="#">Apple cinema</a></td>
+-                            <td>1</td>
+-                            <td>100</td>
+-                        </tr>
+-                        <tr>
+-                            <td>
+-                                <a href="#"><img src="<?= PATH ?>/uploads/2021/11/12/canon_eos_5d_1.jpg" alt=""></a>
+-                            </td>
+-                            <td><a href="#">Canon EOS</a></td>
+-                            <td>1</td>
+-                            <td>100</td>
+-                        </tr>
+-                        <tr>
+-                            <td>
+-                                <a href="#"><img src="<?= PATH ?>/uploads/2021/11/12/hp_1.jpg" alt=""></a>
+-                            </td>
+-                            <td><a href="#">HP</a></td>
+-                            <td>1</td>
+-                            <td>100</td>
+-                        </tr>
+-                    </tbody>
+-                </table>
+-            </div>
+-            <div class="modal-footer">
+-                <button type="button" class="btn btn-danger ripple" data-bs-dismiss="modal">Продолжить покупки</button>
+-                <button type="button" class="btn btn-primary">Оформить заказ</button>
+-            </div>
++            <div class="modal_cart_content"></div>
++
+         </div>
+     </div>
+ </div>
+diff --git a/www/app/views/parts/header.php b/www/app/views/parts/header.php
+index c464d46..a1d9ef7 100644
+--- a/www/app/views/parts/header.php
++++ b/www/app/views/parts/header.php
+@@ -43,9 +43,11 @@
+                         </form>
+                         <a href="#" class="open-search"><i class="fas fa-search"></i></a>
+ 
+-                        <a href="#" class="relative" data-bs-toggle="modal" data-bs-target="#cart-modal">
++                        <a href="#" class="relative" id="get-cart" data-bs-toggle="modal" data-bs-target="#cart-modal">
+                             <i class="fas fa-shopping-cart"></i>
+-                            <span class="badge bg-danger rounded-pill count-items">0</span>
++                            <span class="badge bg-danger rounded-pill count-items">
++                                <?= $_SESSION['cart.qty'] ?? 0 ?>
++                            </span>
+                         </a>
+ 
+ 
+diff --git a/www/app/views/parts/products_loop.php b/www/app/views/parts/products_loop.php
+index 85d6586..cff2932 100644
+--- a/www/app/views/parts/products_loop.php
++++ b/www/app/views/parts/products_loop.php
+@@ -21,7 +21,11 @@
+                         $<?= $product['price'] ?>
+                     </div>
+                     <div class="product-links">
+-                        <a href="#"><i class="fas fa-shopping-cart"></i></a>
++                        <a class="add-to-cart"
++                            href="cart/add?id=<?= $product['id'] ?>"
++                            data-id="<?= $product['id'] ?>">
++                            <?= get_cart_icon($product['id']) ?>
++                        </a>
+                         <a href="#"><i class="far fa-heart"></i></a>
+                     </div>
+                 </div>
+diff --git a/www/public/assets/js/main.js b/www/public/assets/js/main.js
+index 2bd9a33..7365137 100755
+--- a/www/public/assets/js/main.js
++++ b/www/public/assets/js/main.js
+@@ -1,5 +1,88 @@
+ $(function () {
+ 
++    // Cart
++
++    function showCart(cart) {
++        $('#cart-modal .modal_cart_content').html(cart)
++        const myModalEl = document.querySelector('#cart-modal')
++        const modal = bootstrap.Modal.getOrCreateInstance(myModalEl)
++        modal.show()
++
++        const qty = $('.cart-qty').text()
++        if (qty) {
++            $('.count-items').text(qty)
++        } else {
++            $('.count-items').text('0')
++        }
++    }
++
++    $('#get-cart').on('click', function (e) {
++        e.preventDefault()
++        $.ajax({
++            url: 'cart/show',
++            type: 'GET',
++            success: function (res) {
++                showCart(res)
++            },
++            error: function () {
++                alert('Error')
++            }
++        })
++    })
++
++    $('#cart-modal .modal_cart_content').on('click', '.del-item', function (e) {
++        e.preventDefault()
++        const id = $(this).data('id');
++        $.ajax({
++            url: 'cart/delete',
++            type: 'GET',
++            data: { id },
++            success: function (res) {
++                showCart(res)
++            },
++            error: function () {
++                alert("Error")
++            }
++        })
++    })
++
++    $('#cart-modal .modal_cart_content').on('click', '#clear-cart', function () {
++        $.ajax({
++            url: 'cart/clear',
++            type: 'GET',
++            success: function (res) {
++                showCart(res)
++            },
++            error: function () {
++                alert('Error')
++            },
++        })
++    })
++
++    $('.add-to-cart').on('click', function (e) {
++        e.preventDefault()
++        const id = $(this).data('id')
++        const qty = $('#input-quantity').val() ? $('#input-quantity').val() : 1;
++        const $this = $(this)
++
++        $.ajax({
++            url: 'cart/add',
++            type: 'GET',
++            data: { id, qty },
++            success: function (res) {
++                showCart(res);
++                console.log($this.find('i'))
++                $this.find('i')
++                    .removeClass('fa-shopping-cart')
++                    .addClass('fa-luggage-cart')
++            },
++            error: function () {
++                alert('Error')
++            }
++        })
++    })
++    // End Cart
++
+     $('.open-search').click(function (e) {
+         e.preventDefault();
+         $('#search').addClass('active');
+diff --git a/www/vendor/wfm/App.php b/www/vendor/wfm/App.php
+index ccc3afc..3c54379 100644
+--- a/www/vendor/wfm/App.php
++++ b/www/vendor/wfm/App.php
+@@ -12,6 +12,7 @@ class App
+     {
+         $query = trim(urldecode($_SERVER['QUERY_STRING']), '/');
+         new ErrorHandler();
++        session_start();
+         self::$app = Registry::getInstance();
+         $this->getParams();
+         Router::dispatch($query);
+diff --git a/www/vendor/wfm/Controller.php b/www/vendor/wfm/Controller.php
+index 8a18238..72080bc 100644
+--- a/www/vendor/wfm/Controller.php
++++ b/www/vendor/wfm/Controller.php
+@@ -52,4 +52,19 @@ abstract class Controller
+         $this->meta['description'] = $description;
+         $this->meta['keywords'] = $keywords;
+     }
++
++    public function isAjax(): bool
++    {
++        $isAjax = isset($_SERVER['HTTP_X_REQUESTED_WITH'])
++            && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest';
++        return $isAjax;
++    }
++
++    public function loadView(string $view, array $vars = []): void
++    {
++        extract($vars);
++        $prefix = str_replace('\\', '/', $this->route['admin_prefix']);
++        require sprintf('%s/views/%s%s/%s.php', APP, $prefix, $this->route['controller'], $view);
++        die;
++    }
+ }
+diff --git a/www/vendor/wfm/helpers/functions.php b/www/vendor/wfm/helpers/functions.php
+index 518ad2f..cc345cd 100644
+--- a/www/vendor/wfm/helpers/functions.php
++++ b/www/vendor/wfm/helpers/functions.php
+@@ -80,3 +80,17 @@ function ___(string $key): string
+ {
+     return \wfm\Language::get($key);
+ }
++
++
++function get_cart_icon(string $id): string
++{
++    $icon = '<i class="fas fa-shopping-cart"></i>';
++
++    if (empty($_SESSION['cart'])) {
++        return $icon;
++    }
++    if (array_key_exists($id, $_SESSION['cart'])) {
++        $icon = '<i class="fas fa-luggage-cart"></i>';
++    }
++    return $icon;
++}
