@@ -1,0 +1,171 @@
+diff --git a/www/app/controllers/SearchController.php b/www/app/controllers/SearchController.php
+new file mode 100644
+index 0000000..965a511
+--- /dev/null
++++ b/www/app/controllers/SearchController.php
+@@ -0,0 +1,30 @@
++<?php
++
++declare(strict_types=1);
++
++namespace app\controllers;
++
++use wfm\App;
++
++/** @property \app\models\Search $model */
++
++class SearchController extends AppController
++{
++    public function indexAction()
++    {
++        $s = get('s', 's');
++        $lang = App::$app->getProperty('language');
++
++        $page = get('page');
++        $perpage = App::$app->getProperty('pagination');
++        $total = $this->model->get_count_find_product($s, $lang);
++
++        $pagination = new \wfm\Pagination($page, $perpage, $total);
++
++        $start = $pagination->getStart();
++        $products = $this->model->get_find_products($s, $lang, $start, $perpage);
++
++        $this->setMeta(___('search_index_title'));
++        $this->set(compact('s', 'products', 'pagination', 'total'));
++    }
++}
+diff --git a/www/app/models/Search.php b/www/app/models/Search.php
+new file mode 100644
+index 0000000..7998471
+--- /dev/null
++++ b/www/app/models/Search.php
+@@ -0,0 +1,48 @@
++<?php
++
++declare(strict_types=1);
++
++namespace app\models;
++
++use RedBeanPHP\R;
++
++class Search extends AppModel
++{
++    public function get_count_find_product(string $s, array $lang): int
++    {
++        $sql = "SELECT COUNT(*)
++            FROM product p
++            JOIN product_description pd
++                ON p.id = pd.product_id
++            WHERE p.status = 1
++                AND pd.language_id = ?
++                AND pd.title 
++                    LIKE ?";
++
++        $cell = R::getCell($sql, [$lang['id'], "%$s%"]);
++
++        if (is_null($cell)) {
++            $count = 0;
++        } else {
++            $count = (int) $cell;
++        }
++        return $count;
++    }
++
++    public function get_find_products(string $s, array $lang, int $start, int $perpage): array
++    {
++        $sql = "SELECT p.*, pd.*
++            FROM product p
++            JOIN product_description pd
++                ON p.id = pd.product_id
++            WHERE p.status = 1
++                AND pd.language_id = ?
++                AND pd.title 
++                    LIKE ?
++                LIMIT $start, $perpage";
++
++        $all = R::getAll($sql, [$lang['id'], "%$s%"]);
++
++        return $all;
++    }
++}
+diff --git a/www/app/views/Search/index.php b/www/app/views/Search/index.php
+index 6281623..814f383 100644
+--- a/www/app/views/Search/index.php
++++ b/www/app/views/Search/index.php
+@@ -1,14 +1,18 @@
+ <?php
+ 
+ /** 
+- * 
++ * @var array $products
++ * @var int $total
++ * @var \wfm\Pagination $pagination
++ * @var \wfm\View $this
++ * @var string $s
+  * */
+ ?>
+ <div class="container">
+     <nav aria-label="breadcrumb">
+         <ol class="breadcrumb bg-light p-2">
+-            <li class="breadcrumb-item"><a href=""><i class="fas fa-home"></i></a></li>
+-            <li class="breadcrumb-item">'search_index_title'</li>
++            <li class="breadcrumb-item"><a href="<?= base_url() ?>"><i class="fas fa-home"></i></a></li>
++            <li class="breadcrumb-item"><?= ___('search_index_title') ?></li>
+         </ol>
+     </nav>
+ </div>
+@@ -17,29 +21,29 @@
+     <div class="row">
+ 
+         <div class="col-lg-12 category-content">
+-            <h3 class="section-title">'search_index_title'</h3>
+-            <h4>'search_index_query'</h4>
++            <h3 class="section-title"><?= ___('search_index_title') ?></h3>
++            <h4><?= ___('search_index_query') . h($s) ?></h4>
+ 
+             <div class="row">
+-
+-                    'parts/products_loop'
++                <?php if (!empty($products)): ?>
++                    <?php $this->getPart('parts/products_loop', compact('products')) ?>
+ 
+                     <div class="row">
+                         <div class="col-md-12">
+-                            <p>$products 'tpl_total_pagination' $total</p>
+-
+-                                $pagination
+-
++                            <p><?= sprintf('%d %s %d', count($products), ___('tpl_total_pagination'), $total) ?></p>
++                            <?php if ($pagination->countPages > 1): ?>
++                                <?= $pagination ?>
++                            <?php endif; ?>
+                         </div>
+ 
+                     </div>
+ 
+-                
+-                    <p>'search_index_not_found'</p>
+-
++                <?php else: ?>
++                    <p><?= ___('search_index_not_found') ?></p>
++                <?php endif; ?>
+             </div>
+ 
+         </div>
+ 
+     </div>
+-</div>
++</div>
+\ No newline at end of file
+diff --git a/www/config/routes.php b/www/config/routes.php
+index c7fed17..faa6663 100644
+--- a/www/config/routes.php
++++ b/www/config/routes.php
+@@ -8,6 +8,7 @@ Router::add('^admin/?$', ['controller' => 'Main', 'action' => 'index', 'admin_pr
+ Router::add('^admin/(?P<controller>[a-z-]+)/?(?P<action>[a-z-]+)?$', ['admin_prefix' => 'admin']);
+ Router::add('^(?<lang>[a-z]+)?/?product/(?<slug>[a-z0-9-]+)/?$', ['controller' => 'Product', 'action' => 'view']);
+ Router::add('^(?<lang>[a-z]+)?/?category/(?<slug>[a-z0-9-]+)/?$', ['controller' => 'Category', 'action' => 'view']);
++Router::add('^(?<lang>[a-z]+)?/?search/?$', ['controller' => 'Search', 'action' => 'index']);
+ Router::add('^(?P<lang>[a-z]+)?/?$', ['controller' => 'Main', 'action' => 'index']);
+ Router::add('^(?P<controller>[a-z-]+)/(?P<action>[a-z-]+)/?$');
+ Router::add('^(?P<lang>[a-z]+)/(?P<controller>[a-z-]+)/(?P<action>[a-z-]+)/?$');
