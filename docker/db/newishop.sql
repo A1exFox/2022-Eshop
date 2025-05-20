@@ -146,6 +146,68 @@ INSERT INTO `name` VALUES
 UNLOCK TABLES;
 
 --
+-- Table structure for table `page`
+--
+
+DROP TABLE IF EXISTS `page`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `page` (
+  `id` int(10) unsigned NOT NULL,
+  `slug` varchar(255) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `page`
+--
+
+LOCK TABLES `page` WRITE;
+/*!40000 ALTER TABLE `page` DISABLE KEYS */;
+INSERT INTO `page` VALUES
+(1,'o-magazine'),
+(2,'oplata-i-dostavka'),
+(3,'kontakty'),
+(4,'testovaya-stranica');
+/*!40000 ALTER TABLE `page` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `page_description`
+--
+
+DROP TABLE IF EXISTS `page_description`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `page_description` (
+  `page_id` int(10) unsigned NOT NULL,
+  `language_id` int(10) unsigned NOT NULL,
+  `title` varchar(255) NOT NULL,
+  `content` text NOT NULL,
+  `keywords` varchar(255) DEFAULT NULL,
+  `description` varchar(255) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `page_description`
+--
+
+LOCK TABLES `page_description` WRITE;
+/*!40000 ALTER TABLE `page_description` DISABLE KEYS */;
+INSERT INTO `page_description` VALUES
+(1,1,'О магазине','Контент страницы О магазине',NULL,NULL),
+(1,2,'About shop','Content of the About shop page',NULL,NULL),
+(2,1,'Оплата и доставка','Контент страницы Оплата и доставка',NULL,NULL),
+(2,2,'Payment and delivery','Content of the page Payment and delivery',NULL,NULL),
+(3,1,'Контакты','Контент страницы Контакты',NULL,NULL),
+(3,2,'Contact','Contact page content',NULL,NULL),
+(4,1,'Тестовая страница','<p>Контент тестовой страницы…!!</p><figure class=\"image\"><img src=\"/public/uploads/images/fields.jpg\"></figure>','2','1'),
+(4,2,'Test page','<p>Test page content…123</p>','4','3');
+/*!40000 ALTER TABLE `page_description` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `product`
 --
 
@@ -314,4 +376,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*M!100616 SET NOTE_VERBOSITY=@OLD_NOTE_VERBOSITY */;
 
--- Dump completed on 2025-05-12  8:58:50
+-- Dump completed on 2025-05-16 10:36:43
