@@ -1,8 +1,12 @@
 # WebForMyself project
 
-## Training list:
+### Training sets:
 
-### Chapter #2: User part of the online store
+#### Chapter #3: Developing the admin panel for an e-commerce CMS
+
+* 
+
+#### Chapter #2: Developing the frontend for an e-commerce CMS
 
 * [2.39.Cabinet](../../archive/refs/heads/2.39.Cabinet.zip)
 * [2.35.Checkout](../../archive/refs/heads/2.35.Checkout.zip)
@@ -16,7 +20,7 @@
 * [2.11.Cache.Menu](../../archive/refs/heads/2.11.Cache.Menu.zip)
 * [2.04.Multilanguage](../../archive/refs/heads/2.04.Multilanguage.zip)
 
-### Chapter #1: Writing a framework
+#### Chapter #1: Creating a framework from scratch
 
 * [1.12.Model](../../archive/refs/heads/1.12.Model.zip)
 * [1.09.Controller.View](../../archive/refs/heads/1.09.Controller.View.zip)
@@ -24,9 +28,31 @@
 * [1.04.ErrorHandler](../../archive/refs/heads/1.04.ErrorHandler.zip)
 
 ***
-## Commands
+### Download the Training Set
+Choose and download the `*.zip` training set.
 
-1. Download and extract `*.zip` training set.
-1. Go to the root folder of the unpacked archive
-1. Create `.env` and fill it by `.env.example` file
-1. Extract `.git.zip`
+### Run the Training Set
+
+|#| Terminal Command | Description |
+| - | - | - |
+|1. | `unzip *.zip` | Extract the downloaded `*.zip` archive |
+|2. | `cd */` | Navigate to the root folder of extracted archive |
+|3. | `cp .env.example .env` | Create a new `.env` file from `.env.example` |
+|4. | `unzip .git.zip -d .git` | Extract `.git.zip` into the `.git` folder |
+|5. | `make up` or <br> `make build` && `make up` | Start Docker Compose services <br>`make up` = `docker compose up -d`<br>`make build` = `docker compose build` |
+|6. | `make cupdate` | Update PHP (Compoer) dependencies<br>Equivalent to: `docker exec php-fpm composer update --with-all-dependencies` |
+|7. | `http://localhost:80` | Access the application<br>Adminer available at `http://localhost:8080` |
+
+### Using the Training Set
+
+#### Git Branches
+The repository includes two branches:
+* `master` (or similar): Contains the completed solution
+* `try01` (or similar): Contains the unsolved task in initial state
+
+Commands:
+- List branches: `git branch`
+- Switch branches: `git checkout <branch_name>`
+
+#### Patch File (*.diff)
+The root folder contains a `*.diff` file with all required changes to solve the task.
