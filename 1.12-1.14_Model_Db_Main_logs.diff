@@ -1,0 +1,288 @@
+diff --git a/www/app/controllers/MainController.php b/www/app/controllers/MainController.php
+index ae4553e..33a8bf0 100644
+--- a/www/app/controllers/MainController.php
++++ b/www/app/controllers/MainController.php
+@@ -5,8 +5,17 @@ declare(strict_types=1);
+ namespace app\controllers;
+ 
+ use wfm\Controller;
++use app\models\Main;
++
++/** @property Main $model */
+ 
+ class MainController extends Controller
+ {
+-    public function indexAction() {}
++    public function indexAction()
++    {
++        $names = $this->model->getNames();
++        // $names = $this->model->getNames();
++        $this->setMeta('Главная страница', 'Description...', 'keywords...');
++        $this->set(compact('names'));
++    }
+ }
+diff --git a/www/app/models/Main.php b/www/app/models/Main.php
+new file mode 100644
+index 0000000..8135d1f
+--- /dev/null
++++ b/www/app/models/Main.php
+@@ -0,0 +1,16 @@
++<?php
++
++declare(strict_types=1);
++
++namespace app\models;
++
++use wfm\Model;
++use RedBeanPHP\R;
++
++class Main extends Model
++{
++    public function getNames(): array
++    {
++        return R::findAll('name');
++    }
++}
+diff --git a/www/app/views/Main/index.php b/www/app/views/Main/index.php
+index 96cf1b2..814bea5 100644
+--- a/www/app/views/Main/index.php
++++ b/www/app/views/Main/index.php
+@@ -1 +1,13 @@
+-<h1>Hello view/Main/index.php</h1>
+\ No newline at end of file
++<?php
++
++/** @var array $names */
++
++?>
++
++<h1>Hello view/Main/index.php</h1>
++
++<?php if (!empty($names)): ?>
++    <?php foreach ($names as $name): ?>
++        <?= $name->id ?> : <?= $name->name ?><br>
++    <?php endforeach; ?>
++<?php endif; ?>
+\ No newline at end of file
+diff --git a/www/app/views/layouts/ishop.php b/www/app/views/layouts/ishop.php
+index 449b41d..74526db 100644
+--- a/www/app/views/layouts/ishop.php
++++ b/www/app/views/layouts/ishop.php
+@@ -3,18 +3,8 @@
+ /** @var wfm\View $this */
+ 
+ ?>
+-<!DOCTYPE html>
+-<html lang="en">
++<?php $this->getPart('parts/header'); ?>
+ 
+-<head>
+-    <meta charset="UTF-8">
+-    <meta name="viewport"
+-        content="width=device-width, initial-scale=1.0">
+-    <title>Ishop</title>
+-</head>
++<?= $this->content ?>
+ 
+-<body>
+-    <?= $this->content ?>
+-</body>
+-
+-</html>
+\ No newline at end of file
++<?php $this->getPart('parts/footer');
+diff --git a/www/app/views/parts/footer.php b/www/app/views/parts/footer.php
+new file mode 100644
+index 0000000..d1afbdf
+--- /dev/null
++++ b/www/app/views/parts/footer.php
+@@ -0,0 +1,4 @@
++<?php $this->getDbLogs() ?>
++</body>
++
++</html>
+\ No newline at end of file
+diff --git a/www/app/views/parts/header.php b/www/app/views/parts/header.php
+new file mode 100644
+index 0000000..f95e967
+--- /dev/null
++++ b/www/app/views/parts/header.php
+@@ -0,0 +1,16 @@
++<?php
++
++/** @var wfm\View $this */
++
++?>
++<!DOCTYPE html>
++<html lang="en">
++
++<head>
++    <meta charset="UTF-8">
++    <meta name="viewport"
++        content="width=device-width, initial-scale=1.0">
++    <?= $this->getMeta() ?>
++</head>
++
++<body>
+\ No newline at end of file
+diff --git a/www/config/config_db.php b/www/config/config_db.php
+new file mode 100644
+index 0000000..3e4bdba
+--- /dev/null
++++ b/www/config/config_db.php
+@@ -0,0 +1,7 @@
++<?php
++
++return [
++    'dsn' => 'mysql:host=mysql;dbname=newishop;charset:utf8',
++    'user' => 'user',
++    'password' => 'password',
++];
+diff --git a/www/vendor/wfm/Controller.php b/www/vendor/wfm/Controller.php
+index 8b87eab..8a18238 100644
+--- a/www/vendor/wfm/Controller.php
++++ b/www/vendor/wfm/Controller.php
+@@ -11,7 +11,7 @@ abstract class Controller
+     public array $meta = ['title' => '', 'description' => '', 'keywords' => ''];
+     public string|false $layout = '';
+     public string|false $view = '';
+-    public object $model;
++    public Model $model;
+ 
+     public function __construct(array $route)
+     {
+diff --git a/www/vendor/wfm/Db.php b/www/vendor/wfm/Db.php
+new file mode 100644
+index 0000000..975cc49
+--- /dev/null
++++ b/www/vendor/wfm/Db.php
+@@ -0,0 +1,30 @@
++<?php
++
++declare(strict_types=1);
++
++namespace wfm;
++
++use Exception;
++use RedBeanPHP\R;
++
++class Db
++{
++    use TSingleton;
++
++    private function __construct()
++    {
++        $db = require_once CONFIG . '/config_db.php';
++        R::setup($db['dsn'], $db['user'], $db['password']);
++
++        if (!R::testConnection()) {
++            throw new Exception("No connection to DB", 500);
++        }
++
++        R::freeze(true);
++
++        if (DEBUG === 1) {
++            R::debug(true, 3);
++            // R::fancyDebug();
++        }
++    }
++}
+diff --git a/www/vendor/wfm/Model.php b/www/vendor/wfm/Model.php
+new file mode 100644
+index 0000000..24b3396
+--- /dev/null
++++ b/www/vendor/wfm/Model.php
+@@ -0,0 +1,18 @@
++<?php
++
++declare(strict_types=1);
++
++namespace wfm;
++
++abstract class Model
++{
++    public array $attributes = [];
++    public array $errors = [];
++    public array $rules = [];
++    public array $labels = [];
++
++    public function __construct()
++    {
++        Db::getInstance();
++    }
++}
+diff --git a/www/vendor/wfm/View.php b/www/vendor/wfm/View.php
+index a5377ab..be9fa1c 100644
+--- a/www/vendor/wfm/View.php
++++ b/www/vendor/wfm/View.php
+@@ -5,6 +5,7 @@ declare(strict_types=1);
+ namespace wfm;
+ 
+ use Exception;
++use RedBeanPHP\R;
+ 
+ class View
+ {
+@@ -59,4 +60,48 @@ class View
+             }
+         }
+     }
++
++    public function getMeta(): string
++    {
++        $out = '<title>' . h($this->meta['title']) . '</title>' . PHP_EOL;
++        $out .= '<meta name="description" content="' . h($this->meta['description']) . '">' . PHP_EOL;
++        $out .= '<meta name="keywords" content="' . h($this->meta['keywords']) . '">';
++        return $out;
++    }
++
++    public function getDbLogs(): void
++    {
++        if (DEBUG !== 1) {
++            return;
++        }
++
++        /** @disregard Undefined method 'getLogger'.intelephense(P1013) */
++        $logs = R::getDatabaseAdapter()
++            ->getDatabase()
++            ->getLogger();
++
++        $logs = array_merge(
++            $logs->grep('SELECT'),
++            $logs->grep('INSERT'),
++            $logs->grep('UPDATE'),
++            $logs->grep('DELETE')
++        );
++        debug($logs);
++    }
++
++    public function getPart($file, array|null $data = null)
++    {
++        if (is_array($data)) {
++            extract($data);
++        }
++
++        $file = APP . "/views/$file.php";
++
++        if (!is_file($file)) {
++            echo "File $file is not found...";
++            return;
++        }
++
++        require $file;
++    }
+ }
+diff --git a/www/vendor/wfm/helpers/functions.php b/www/vendor/wfm/helpers/functions.php
+index c1c529a..d48e5d8 100644
+--- a/www/vendor/wfm/helpers/functions.php
++++ b/www/vendor/wfm/helpers/functions.php
+@@ -11,3 +11,9 @@ function debug(mixed $data, bool $die = false): void
+         die;
+     }
+ }
++
++function h(string $str): string
++{
++    $str = htmlspecialchars($str);
++    return $str;
++}

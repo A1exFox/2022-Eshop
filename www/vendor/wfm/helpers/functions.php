@@ -11,9 +11,3 @@ function debug(mixed $data, bool $die = false): void
         die;
     }
 }
-
-function h(string $str): string
-{
-    $str = htmlspecialchars($str);
-    return $str;
-}
