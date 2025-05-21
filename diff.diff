@@ -1,0 +1,116 @@
+diff --git a/www/app/controllers/admin/MainController.php b/www/app/controllers/admin/MainController.php
+index 39e35f3..3e2fdb3 100644
+--- a/www/app/controllers/admin/MainController.php
++++ b/www/app/controllers/admin/MainController.php
+@@ -4,12 +4,20 @@ declare(strict_types=1);
+ 
+ namespace app\controllers\admin;
+ 
++use RedBeanPHP\R;
++
+ class MainController extends AppController
+ {
+     public function indexAction()
+     {
++        $orders = R::count('orders');
++        $new_orders = R::count('orders', 'status = 0');
++        $users = R::count('user');
++        $products = R::count('product');
++
++
+         $title = 'Главная страница';
+         $this->setMeta('Админка :: Главная страница');
+-        $this->set(compact('title'));
++        $this->set(compact('title', 'orders', 'new_orders', 'users', 'products'));
+     }
+ }
+diff --git a/www/app/views/admin/Main/index.php b/www/app/views/admin/Main/index.php
+index 0a8929a..10f55e2 100644
+--- a/www/app/views/admin/Main/index.php
++++ b/www/app/views/admin/Main/index.php
+@@ -1,4 +1,4 @@
+-
++<?php
+ 
+ /**
+  * @var int $orders
+@@ -6,7 +6,7 @@
+  * @var int $users
+  * @var int $products
+  */
+-
++?>
+ <!-- Default box -->
+ <div class="card">
+     <div class="card-body">
+@@ -16,13 +16,13 @@
+                     <!-- small box -->
+                     <div class="small-box bg-info">
+                         <div class="inner">
+-                            <h3> $orders </h3>
++                            <h3><?= $orders ?></h3>
+                             <p>Заказов</p>
+                         </div>
+                         <div class="icon">
+                             <i class="fas fa-shopping-bag"></i>
+                         </div>
+-                        <a href=" ADMIN /order" class="small-box-footer">More info <i class="fas fa-arrow-circle-right"></i></a>
++                        <a href="<?= ADMIN ?>/order" class="small-box-footer">More info <i class="fas fa-arrow-circle-right"></i></a>
+                     </div>
+                 </div>
+                 <!-- ./col -->
+@@ -30,13 +30,13 @@
+                     <!-- small box -->
+                     <div class="small-box bg-danger">
+                         <div class="inner">
+-                            <h3> $new_orders </h3>
++                            <h3><?= $new_orders ?></h3>
+                             <p>Новых заказов</p>
+                         </div>
+                         <div class="icon">
+                             <i class="fas fa-luggage-cart"></i>
+                         </div>
+-                        <a href=" ADMIN /orders?status=0" class="small-box-footer">More info <i class="fas fa-arrow-circle-right"></i></a>
++                        <a href="<?= ADMIN ?>/orders?status=0" class="small-box-footer">More info <i class="fas fa-arrow-circle-right"></i></a>
+                     </div>
+                 </div>
+                 <!-- ./col -->
+@@ -44,13 +44,13 @@
+                     <!-- small box -->
+                     <div class="small-box bg-warning">
+                         <div class="inner">
+-                            <h3> $users </h3>
++                            <h3><?= $users ?></h3>
+                             <p>Пользователей</p>
+                         </div>
+                         <div class="icon">
+                             <i class="fas fa-user-friends"></i>
+                         </div>
+-                        <a href=" ADMIN /user" class="small-box-footer">More info <i class="fas fa-arrow-circle-right"></i></a>
++                        <a href="<?= ADMIN ?>/user" class="small-box-footer">More info <i class="fas fa-arrow-circle-right"></i></a>
+                     </div>
+                 </div>
+                 <!-- ./col -->
+@@ -58,13 +58,13 @@
+                     <!-- small box -->
+                     <div class="small-box bg-success">
+                         <div class="inner">
+-                            <h3> $products </h3>
++                            <h3><?= $products ?></h3>
+                             <p>Товаров</p>
+                         </div>
+                         <div class="icon">
+                             <i class="fas fa-barcode"></i>
+                         </div>
+-                        <a href=" ADMIN /product" class="small-box-footer">More info <i class="fas fa-arrow-circle-right"></i></a>
++                        <a href="<?= ADMIN ?>/product" class="small-box-footer">More info <i class="fas fa-arrow-circle-right"></i></a>
+                     </div>
+                 </div>
+                 <!-- ./col -->
+@@ -72,4 +72,4 @@
+         </div>
+     </div>
+ </div>
+-<!-- /.card -->
++<!-- /.card -->
+\ No newline at end of file
