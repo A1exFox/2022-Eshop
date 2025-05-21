@@ -38,7 +38,7 @@
 
                         <li class="nav-item">
                             <a href="<?= ADMIN ?>" class="nav-link">
-                                <i class="nav-icon fas fa-th"></i>
+                                <i class="nav-icon fas fa-tachometer-alt"></i>
                                 <p>Главная</p>
                             </a>
                         </li>
