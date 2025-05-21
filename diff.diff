@@ -1,0 +1,188 @@
+diff --git a/www/app/controllers/admin/AppController.php b/www/app/controllers/admin/AppController.php
+index fdd1335..919bc82 100644
+--- a/www/app/controllers/admin/AppController.php
++++ b/www/app/controllers/admin/AppController.php
+@@ -4,6 +4,7 @@ declare(strict_types=1);
+ 
+ namespace app\controllers\admin;
+ 
++use app\models\admin\User;
+ use app\models\AppModel;
+ use app\widgets\language\Language;
+ use wfm\App;
+@@ -16,6 +17,11 @@ class AppController extends Controller
+     public function __construct(array $route)
+     {
+         parent::__construct($route);
++
++        if (!User::isAdmin() && $route['action'] != 'login-admin') {
++            redirect(ADMIN . '/user/login-admin');
++        }
++
+         new AppModel();
+         $languages = Language::getLanguages();
+         App::$app->setProperty('languages', $languages);
+diff --git a/www/app/controllers/admin/UserController.php b/www/app/controllers/admin/UserController.php
+new file mode 100644
+index 0000000..99cced6
+--- /dev/null
++++ b/www/app/controllers/admin/UserController.php
+@@ -0,0 +1,42 @@
++<?php
++
++declare(strict_types=1);
++
++namespace app\controllers\admin;
++
++/**
++ * @property \app\models\admin\User $model
++ */
++class UserController extends AppController
++{
++    public function loginAdminAction()
++    {
++        if ($this->model::isAdmin()) {
++            redirect(ADMIN);
++        }
++
++        $this->layout = 'login';
++
++        if (!empty($_POST)) {
++            if ($this->model->login(true)) {
++                $_SESSION['success'] = "Вы успешно авторизованы";
++            } else {
++                $_SESSION['errors'] = "Логин/пароль введены неревно";
++            }
++
++            if ($this->model::isAdmin()) {
++                redirect(ADMIN);
++            } else {
++                redirect();
++            }
++        }
++    }
++
++    public function logoutAction()
++    {
++        if ($this->model::isAdmin()) {
++            unset($_SESSION['user']);
++        }
++        redirect(ADMIN . '/user/login-admin');
++    }
++}
+diff --git a/www/app/models/admin/User.php b/www/app/models/admin/User.php
+new file mode 100644
+index 0000000..b818085
+--- /dev/null
++++ b/www/app/models/admin/User.php
+@@ -0,0 +1,13 @@
++<?php
++
++declare(strict_types=1);
++
++namespace app\models\admin;
++
++class User extends \app\models\User
++{
++    public static function isAdmin(): bool
++    {
++        return isset($_SESSION['user']) && $_SESSION['user']['role'] == 'admin';
++    }
++}
+diff --git a/www/app/views/admin/User/login-admin.php b/www/app/views/admin/User/login-admin.php
+index 45f435c..6e3eb78 100644
+--- a/www/app/views/admin/User/login-admin.php
++++ b/www/app/views/admin/User/login-admin.php
+@@ -7,13 +7,13 @@
+         <div class="card-body login-card-body">
+             <p class="login-box-msg">Sign in to start your session</p>
+ 
+-             if (!empty($_SESSION['errors'])): 
++            <?php if (!empty($_SESSION['errors'])): ?>
+                 <div class="alert alert-danger alert-dismissible">
+                     <button type="button" class="close" data-dismiss="alert" aria-hidden="true">×</button>
+                     <i class="icon fas fa-ban"></i>
+-                     echo $_SESSION['errors']; unset($_SESSION['errors']); 
++                    <?php echo $_SESSION['errors']; unset($_SESSION['errors']); ?>
+                 </div>
+-             endif; 
++            <?php endif; ?>
+ 
+             <form method="post">
+                 <div class="input-group mb-3">
+diff --git a/www/app/views/admin/parts/sidebar.php b/www/app/views/admin/parts/sidebar.php
+index c82ad8f..69b272b 100644
+--- a/www/app/views/admin/parts/sidebar.php
++++ b/www/app/views/admin/parts/sidebar.php
+@@ -11,13 +11,13 @@
+                 <!-- Sidebar user (optional) -->
+                 <div class="user-panel mt-3 pb-3 mb-3 d-flex">
+                     <div class="image">
+-                        <img src=" PATH /adminlte/dist/img/user2-160x160.jpg" class="img-circle elevation-2" alt="User Image">
++                        <img src="<?= PATH ?>/adminlte/dist/img/user2-160x160.jpg" class="img-circle elevation-2" alt="User Image">
+                     </div>
+                     <div class="info">
+-                        <a href=" ADMIN /user/edit?id= $_SESSION['user']['id'] " class="d-block">
+-                             h($_SESSION['user']['name']) 
++                        <a href="<?= ADMIN ?>/user/edit?id=<?= $_SESSION['user']['id'] ?>" class="d-block">
++                            <?= h($_SESSION['user']['name']) ?>
+                         </a>
+-                        <a href=" ADMIN /user/logout" class="d-block">
++                        <a href="<?= ADMIN ?>/user/logout" class="d-block">
+                             Logout
+                         </a>
+                     </div>
+@@ -52,4 +52,4 @@
+                 <!-- /.sidebar-menu -->
+             </div>
+             <!-- /.sidebar -->
+-        </aside>
++        </aside>
+\ No newline at end of file
+diff --git a/www/app/views/layouts/login.php b/www/app/views/layouts/login.php
+index 84c0e08..2912ac8 100644
+--- a/www/app/views/layouts/login.php
++++ b/www/app/views/layouts/login.php
+@@ -1,30 +1,30 @@
+-
++<?php
+ 
+ /** 
+  * @var $this \wfm\View */
+-
++?>
+ <!DOCTYPE html>
+ <html lang="en">
+ 
+ <head>
+-    <base href=" ADMIN /">
++    <base href="<?= ADMIN ?>/">
+     <meta charset="utf-8">
+     <meta name="viewport" content="width=device-width, initial-scale=1">
+     <title>AdminLTE 3 | Log in</title>
+ 
+     <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,400i,700&display=fallback">
+-    <link rel="stylesheet" href=" PATH /adminlte/plugins/fontawesome-free/css/all.min.css">
+-    <link rel="stylesheet" href=" PATH /adminlte/dist/css/adminlte.min.css">
+-    <link rel="icon" href=" PATH /assets/img/favicon.ico" type="image/x-icon">
++    <link rel="stylesheet" href="<?= PATH ?>/adminlte/plugins/fontawesome-free/css/all.min.css">
++    <link rel="stylesheet" href="<?= PATH ?>/adminlte/dist/css/adminlte.min.css">
++    <link rel="icon" href="<?= PATH ?>/assets/img/favicon.ico" type="image/x-icon">
+ </head>
+ 
+ <body class="hold-transition login-page">
+ 
+-     $this->content 
++    <?= $this->content ?>
+ 
+-    <script src=" PATH /adminlte/plugins/jquery/jquery.min.js"></script>
+-    <script src=" PATH /adminlte/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
+-    <script src=" PATH /adminlte/dist/js/adminlte.min.js"></script>
++    <script src="<?= PATH ?>/adminlte/plugins/jquery/jquery.min.js"></script>
++    <script src="<?= PATH ?>/adminlte/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
++    <script src="<?= PATH ?>/adminlte/dist/js/adminlte.min.js"></script>
+ </body>
+ 
+-</html>
++</html>
+\ No newline at end of file

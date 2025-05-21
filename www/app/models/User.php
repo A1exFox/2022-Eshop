@@ -46,7 +46,7 @@ class User extends AppModel
         return true;
     }
 
-    public function login(bool $is_admin = false)
+    public function login(bool $is_admin = false): bool
     {
         $email = post('email');
         $password = post('password');
