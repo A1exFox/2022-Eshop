@@ -25,11 +25,6 @@
     <!-- Main content -->
     <section class="content">
 
-        <?php
-        $_SESSION['success'] = 'success message';
-        $_SESSION['errors'] = 'errors message';
-        ?>
-
         <?php if (!empty($_SESSION['success'])): ?>
             <div class="alert alert-success alert-dismissible">
                 <button type="button" class="close" data-dismiss="alert" aria-hidden="true">×</button>

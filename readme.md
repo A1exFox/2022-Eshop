@@ -4,7 +4,7 @@
 
 #### Chapter #3: Developing the admin panel for an e-commerce CMS
 
-* 
+* [3.02.Admin.access.control](../../archive/refs/heads/3.02.Admin.access.control.zip)
 
 #### Chapter #2: Developing the frontend for an e-commerce CMS
 
