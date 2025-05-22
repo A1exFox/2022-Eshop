@@ -104,3 +104,13 @@ function get_field_value(string $name): string
     }
     return $data;
 }
+
+function get_field_array_value($name,  $key, $index): string
+{
+    if (isset($_SESSION['form_data'][$name][$key][$index])) {
+        $data = h($_SESSION['form_data'][$name][$key][$index]);
+    } else {
+        $data = '';
+    }
+    return $data;
+}

@@ -6,6 +6,8 @@ namespace app\controllers\admin;
 
 use RedBeanPHP\R;
 
+/** @property \app\models\admin\Category $model */
+
 class CategoryController extends AppController
 {
     public function indexAction()
@@ -35,5 +37,18 @@ class CategoryController extends AppController
         R::exec("DELETE FROM category_description WHERE category_id = ?", [$id]);
         $_SESSION['success'] = 'Категория удалена';
         redirect();
+    }
+
+    public function addAction()
+    {
+        if (!empty($_POST)) {
+            if ($this->model->category_validate()) {
+                $_SESSION['success'] = "Категория сохранена";
+            }
+            redirect();
+        }
+        $title = 'Добавление категорий';
+        $this->setMeta("Админка :: $title");
+        $this->set(compact('title'));
     }
 }
