@@ -8,7 +8,7 @@
 <div class="card">
 
     <div class="card-header">
-        <a href="<?= ADMIN ?>category/add" class="btn btn-default btn-flat">
+        <a href="<?= ADMIN ?>/category/add" class="btn btn-default btn-flat">
             <i class="fas fa-plus"></i>
             Добавить категорию
         </a>
