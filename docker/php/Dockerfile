@@ -14,7 +14,8 @@ RUN set -eux && \
         curl \
         git \
         zip \
-        linux-headers && \
+        linux-headers \
+        libpng-dev && \
     \
     pecl channel-update \
         pecl.php.net && \
@@ -25,7 +26,8 @@ RUN set -eux && \
     docker-php-ext-install \
         pdo \
         pdo_mysql \
-        mysqli && \
+        mysqli \
+        gd && \
     \
     docker-php-ext-enable \
         xdebug && \

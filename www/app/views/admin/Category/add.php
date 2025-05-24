@@ -100,3 +100,42 @@
 
 </div>
 <!-- /.card -->
+<?php if (is_file(WWW . '/adminlte/ckeditor/ckeditor5.js')): ?>
+    <script type="importmap">
+        {
+				"imports": {
+					"ckeditor5": "<?= PATH ?>/adminlte/ckeditor/ckeditor5.js",
+					"ckeditor5/": "<?= PATH ?>/adminlte/ckeditor/"
+				}
+			}
+		</script>
+    <script type="module">
+        import {
+            ClassicEditor,
+            Essentials,
+            Paragraph,
+            Bold,
+            Italic,
+            Font
+        } from 'ckeditor5';
+
+        document.querySelectorAll('.editor').forEach((node, index) => {
+            ClassicEditor
+                .create(node, {
+                    licenseKey: 'GPL', // Or <YOUR_LICENSE_KEY>
+                    plugins: [Essentials, Paragraph, Bold, Italic, Font],
+                    toolbar: [
+                        'undo', 'redo', '|', 'bold', 'italic', '|',
+                        'fontSize', 'fontFamily', 'fontColor', 'fontBackgroundColor'
+                    ],
+                    licenseKey: 'GPL'
+                })
+                .then(editor => {
+                    window.editor = editor;
+                })
+                .catch(error => {
+                    console.error(error);
+                });
+        })
+    </script>
+<?php endif; ?>
