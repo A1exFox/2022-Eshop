@@ -47,6 +47,12 @@
                                 <p>Главная</p>
                             </a>
                         </li>
+                        <li class="nav-item">
+                            <a href=" ADMIN /category" class="nav-link">
+                                <i class="nav-icon fas fa-th"></i>
+                                <p>Категории</p>
+                            </a>
+                        </li>
                     </ul>
                 </nav>
                 <!-- /.sidebar-menu -->

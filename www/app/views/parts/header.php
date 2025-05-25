@@ -88,7 +88,7 @@
                         <div class="collapse navbar-collapse" id="navbarSupportedContent">
 
                             <?php new \app\widgets\menu\Menu([
-                                'cache' => 3600,
+                                'cache' => 0,
                                 'class' => 'navbar-nav ms-auto mb-2 mb-lg-0',
                             ]) ?>
 

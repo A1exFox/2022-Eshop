@@ -1,0 +1,782 @@
+diff --git a/www/app/controllers/admin/AppController.php b/www/app/controllers/admin/AppController.php
+index 919bc82..826e760 100644
+--- a/www/app/controllers/admin/AppController.php
++++ b/www/app/controllers/admin/AppController.php
+@@ -24,7 +24,18 @@ class AppController extends Controller
+ 
+         new AppModel();
+         $languages = Language::getLanguages();
++        $language = Language::getLanguage($languages);
+         App::$app->setProperty('languages', $languages);
+-        App::$app->setProperty('language', Language::getLanguage($languages));
++        App::$app->setProperty('language', $language);
++
++        // FIXME dublicated code and run always
++        $sql = "SELECT c.*, cd.*
++            FROM category c
++            JOIN category_description cd
++            ON c.id = cd.category_id
++            WHERE cd.language_id = ?";
++
++        $categories = \RedBeanPHP\R::getAssoc($sql, [$language['id']]);
++        App::$app->setProperty(sprintf('categories_%s', $language['code']), $categories);
+     }
+ }
+diff --git a/www/app/controllers/admin/CategoryController.php b/www/app/controllers/admin/CategoryController.php
+new file mode 100644
+index 0000000..e6d0d6f
+--- /dev/null
++++ b/www/app/controllers/admin/CategoryController.php
+@@ -0,0 +1,85 @@
++<?php
++
++declare(strict_types=1);
++
++namespace app\controllers\admin;
++
++use Exception;
++use RedBeanPHP\R;
++use wfm\App;
++
++/** @property \app\models\admin\Category $model */
++
++class CategoryController extends AppController
++{
++    public function indexAction()
++    {
++        $title = 'Категории';
++        $this->setMeta("Админка :: $title");
++        $this->set(compact('title'));
++    }
++
++    public function deleteAction()
++    {
++        $id = get('id');
++        $errors = '';
++        $children = R::count('category', 'parent_id = ?', [$id]);
++        $products = R::count('product', 'category_id = ?', [$id]);
++        if ($children) {
++            $errors .= 'Ошибка! Категория содержит вложенные категории<br>';
++        }
++        if ($products) {
++            $errors .= 'Ошибка! Категория содержит товары<br>';
++        }
++        if ($errors) {
++            $_SESSION['errors'] = $errors;
++            redirect();
++        }
++        R::exec("DELETE FROM category WHERE id = ?", [$id]);
++        R::exec("DELETE FROM category_description WHERE category_id = ?", [$id]);
++        $_SESSION['success'] = 'Категория удалена';
++        redirect();
++    }
++
++    public function addAction()
++    {
++        if (!empty($_POST)) {
++            if ($this->model->category_validate()) {
++                if ($this->model->save_category()) {
++                    $_SESSION['success'] = "Категория сохранена";
++                } else {
++                    $_SESSION['errors'] = 'Ошибка сохранения категории';
++                }
++            }
++            redirect();
++        }
++        $title = 'Добавление категорий';
++        $this->setMeta("Админка :: $title");
++        $this->set(compact('title'));
++    }
++
++    public function editAction()
++    {
++        $id = get('id');
++        if (!empty($_POST)) {
++            if ($this->model->category_validate()) {
++                if ($this->model->update_category($id)) {
++                    $_SESSION['success'] = "Категория обновлена";
++                } else {
++                    $_SESSION['errors'] = "Ошибка";
++                }
++            }
++            redirect();
++        }
++
++        $category = $this->model->get_category($id);
++        if (empty($category)) {
++            throw new Exception("Category \"$id\" is not found", 404);
++        }
++        $lang = App::$app->getProperty('language')['id'];
++        App::$app->setProperty('parent_id', $category[$lang]['parent_id']);
++        $title = 'Редактирование категории';
++        $this->setMeta("Админка:: $title");
++        $this->set(compact('title', 'category'));
++    }
++}
+diff --git a/www/app/models/AppModel.php b/www/app/models/AppModel.php
+index 9741f12..63fe047 100644
+--- a/www/app/models/AppModel.php
++++ b/www/app/models/AppModel.php
+@@ -5,5 +5,106 @@ declare(strict_types=1);
+ namespace app\models;
+ 
+ use wfm\Model;
++use RedBeanPHP\R;
+ 
+-class AppModel extends Model {}
++class AppModel extends Model
++{
++    // FIXME 
++    // TODO make simple these methods
++    public static function create_slug(string $table, string $field, string $str, int $id): string
++    {
++        $str = self::str2url($str);
++        $res = R::findOne($table, "$field = ?", [$id]);
++        if ($res) {
++            $str = "$str-$id";
++            $res = R::count($table, "$field = ?", [$str]);
++            if ($res) {
++                $str = self::create_slug($table, $field, $str, $id);
++            }
++        }
++        return $str;
++    }
++    public static function str2url(string $str): string
++    {
++        $str = self::rus2translite($str);
++        $str = strtolower($str);
++        // FIXME optimize regex pattern
++        $str = preg_replace("#[^-a-z0-9]+#u", '-', $str);
++        $str = trim($str, '-');
++        return $str;
++    }
++    public static function rus2translite(string $str): string
++    {
++        // FIXME move to static const, optimize $alphabet
++        $alphabet = [
++            'а' => 'a',
++            'б' => 'b',
++            'в' => 'v',
++            'г' => 'g',
++            'д' => 'd',
++            'е' => 'e',
++            'ё' => 'e',
++            'ж' => 'zh',
++            'з' => 'z',
++            'и' => 'i',
++            'й' => 'y',
++            'к' => 'k',
++            'л' => 'l',
++            'м' => 'm',
++            'н' => 'n',
++            'о' => 'o',
++            'п' => 'p',
++            'р' => 'r',
++            'с' => 's',
++            'т' => 't',
++            'у' => 'u',
++            'ф' => 'f',
++            'х' => 'h',
++            'ц' => 'c',
++            'ч' => 'ch',
++            'ш' => 'sh',
++            'щ' => 'sch',
++            'ь' => '\'',
++            'ы' => 'y',
++            'ъ' => '\'',
++            'э' => 'e',
++            'ю' => 'yu',
++            'я' => 'ya',
++
++            'А' => 'A',
++            'Б' => 'B',
++            'В' => 'V',
++            'Г' => 'G',
++            'Д' => 'D',
++            'Е' => 'E',
++            'Ё' => 'E',
++            'Ж' => 'Zh',
++            'З' => 'Z',
++            'И' => 'I',
++            'Й' => 'Y',
++            'К' => 'K',
++            'Л' => 'L',
++            'М' => 'M',
++            'Н' => 'N',
++            'О' => 'O',
++            'П' => 'P',
++            'Р' => 'R',
++            'С' => 'S',
++            'Т' => 'T',
++            'У' => 'U',
++            'Ф' => 'F',
++            'Х' => 'H',
++            'Ц' => 'C',
++            'Ч' => 'Ch',
++            'Ш' => 'Sh',
++            'Щ' => 'Sch',
++            'Ь' => '\'',
++            'Ы' => 'Y',
++            'Ъ' => '\'',
++            'Э' => 'E',
++            'Ю' => 'Yu',
++            'Я' => 'Ya',
++        ];
++        return strtr($str, $alphabet);
++    }
++}
+diff --git a/www/app/models/admin/Category.php b/www/app/models/admin/Category.php
+new file mode 100644
+index 0000000..44e3e22
+--- /dev/null
++++ b/www/app/models/admin/Category.php
+@@ -0,0 +1,110 @@
++<?php
++
++declare(strict_types=1);
++
++namespace app\models\admin;
++
++use RedBeanPHP\R;
++use app\models\AppModel;
++use wfm\App;
++
++class Category extends AppModel
++{
++    public function category_validate(): bool
++    {
++        $errors = '';
++        foreach ($_POST['category_description'] as $lang_id => $item) {
++            $item['title'] = trim($item['title']);
++            if (empty($item['title'])) {
++                $errors .= "Не заполнено наименование во вкладке $lang_id<br>";
++            }
++        }
++        if ($errors) {
++            $_SESSION['errors'] = $errors;
++            $_SESSION['form_data'] = $_POST;
++            return false;
++        }
++        return true;
++    }
++
++    public function save_category(): bool
++    {
++        $lang = (int)App::$app->getProperty('language')['id'];
++        R::begin();
++        try {
++            $category = R::dispense('category');
++            $category->parent_id = post('parent_id', 'i');
++            $category_id = R::store($category);
++            $category->slug = AppModel::create_slug('category', 'slug', $_POST['category_description'][$lang]['title'], (int)$category_id);
++            R::store($category);
++
++            foreach ($_POST['category_description'] as $lang_id => $item) {
++                $fields = 'category_id, language_id, title, description, keywords, content';
++                $values = '?,?,?,?,?,?';
++                $data = [
++                    $category_id,
++                    $lang_id,
++                    $item['title'],
++                    $item['description'],
++                    $item['keywords'],
++                    $item['content'],
++                ];
++                R::exec(
++                    "INSERT INTO category_description ($fields)
++                    VALUES ($values)",
++                    $data
++                );
++            }
++            R::commit();
++            return true;
++        } catch (\Exception $e) {
++            R::rollback();
++            return false;
++        }
++    }
++
++    public function get_category(int $id): array
++    {
++        return R::getAssoc("SELECT cd.language_id, cd.*, c.*
++            FROM category_description cd
++            JOIN category c
++                ON c.id = cd.category_id
++            WHERE cd.category_id = ?", [$id]);
++    }
++
++    public function update_category($id): bool
++    {
++        R::begin();
++        try {
++
++            $category = R::load('category', $id);
++            if (!$category) {
++                return false;
++            }
++            $category->parent_id = post('parent_id', 'i');
++            R::store($category);
++
++            foreach ($_POST['category_description'] as $lang_id => $item) {
++                R::exec(
++                    "UPDATE category_description
++                    SET title = ?, description = ?, keywords = ?, content = ?
++                    WHERE category_id = ?
++                        AND language_id = ?",
++                    [
++                        $item['title'],
++                        $item['description'],
++                        $item['keywords'],
++                        $item['content'],
++                        $id,
++                        $lang_id,
++                    ]
++                );
++            }
++            R::commit();
++            return true;
++        } catch (\Exception $e) {
++            R::rollback();
++            return false;
++        }
++    }
++}
+diff --git a/www/app/views/admin/Category/add.php b/www/app/views/admin/Category/add.php
+index 9d58258..f15aab8 100644
+--- a/www/app/views/admin/Category/add.php
++++ b/www/app/views/admin/Category/add.php
+@@ -7,7 +7,7 @@
+ 
+             <div class="form-group">
+                 <label class="required" for="parent_id">Родительская категория</label>
+-                 new \app\widgets\menu\Menu([
++                <?php new \app\widgets\menu\Menu([
+                     'cache' => 0,
+                     'cacheKey' => 'admin_menu_select',
+                     'class' => 'form-control',
+@@ -19,68 +19,68 @@
+                     ],
+                     'prepend' => '<option value="0">Самостоятельная категория</option>',
+                     'tpl' => APP . '/widgets/menu/admin_select_tpl.php',
+-                ]) 
++                ]) ?>
+             </div>
+ 
+             <div class="card card-info card-outline card-tabs">
+                 <div class="card-header p-0 pt-1 border-bottom-0">
+                     <ul class="nav nav-tabs" id="custom-tabs-three-tab" role="tablist">
+-                         foreach (\wfm\App::$app->getProperty('languages') as $k => $lang): 
++                        <?php foreach (\wfm\App::$app->getProperty('languages') as $k => $lang): ?>
+                             <li class="nav-item">
+-                                <a class="nav-link  if ($lang['base']) echo 'active' " data-toggle="pill" href="# $k ">
+-                                    <img src=" PATH /assets/img/lang/ $k .png" alt="">
++                                <a class="nav-link <?php if ($lang['base']) echo 'active' ?>" data-toggle="pill" href="#<?= $k ?>">
++                                    <img src="<?= PATH ?>/assets/img/lang/<?= $k ?>.png" alt="">
+                                 </a>
+                             </li>
+-                         endforeach; 
++                        <?php endforeach; ?>
+                     </ul>
+                 </div>
+ 
+                 <div class="card-body">
+                     <div class="tab-content">
+-                         foreach (\wfm\App::$app->getProperty('languages') as $k => $lang): 
+-                            <div class="tab-pane fade  if ($lang['base']) echo 'active show' " id=" $k ">
++                        <?php foreach (\wfm\App::$app->getProperty('languages') as $k => $lang): ?>
++                            <div class="tab-pane fade <?php if ($lang['base']) echo 'active show' ?>" id="<?= $k ?>">
+ 
+                                 <div class="form-group">
+                                     <label class="required" for="title">Наименование</label>
+                                     <input type="text"
+-                                        name="category_description[ $lang['id'] ][title]"
++                                        name="category_description[<?= $lang['id'] ?>][title]"
+                                         class="form-control"
+                                         id="title"
+                                         placeholder="Наименование категории"
+-                                        value=" get_field_array_value('category_description', $lang['id'], 'title') ">
++                                        value="<?= get_field_array_value('category_description', $lang['id'], 'title') ?>">
+                                 </div>
+ 
+                                 <div class="form-group">
+                                     <label for="description">Мета-описание</label>
+                                     <input type="text"
+-                                        name="category_description[ $lang['id'] ][description]"
++                                        name="category_description[<?= $lang['id'] ?>][description]"
+                                         class="form-control"
+                                         id="description"
+                                         placeholder="Мета-описание"
+-                                        value=" get_field_array_value('category_description', $lang['id'], 'description') ">
++                                        value="<?= get_field_array_value('category_description', $lang['id'], 'description') ?>">
+                                 </div>
+ 
+                                 <div class="form-group">
+                                     <label for="keywords">Ключевые слова</label>
+                                     <input type="text"
+-                                        name="category_description[ $lang['id'] ][keywords]"
++                                        name="category_description[<?= $lang['id'] ?>][keywords]"
+                                         class="form-control"
+                                         id="keywords"
+                                         placeholder="Ключевые слова"
+-                                        value=" get_field_array_value('category_description', $lang['id'], 'keywords') ">
++                                        value="<?= get_field_array_value('category_description', $lang['id'], 'keywords') ?>">
+                                 </div>
+ 
+                                 <div class="form-group">
+                                     <label for="content">Описание категории</label>
+-                                    <textarea name="category_description[ $lang['id'] ][content]"
++                                    <textarea name="category_description[<?= $lang['id'] ?>][content]"
+                                         class="form-control editor"
+                                         id="content"
+                                         rows="3"
+-                                        placeholder="Описание категории"> get_field_array_value('category_description', $lang['id'], 'content') </textarea>
++                                        placeholder="Описание категории"><?= get_field_array_value('category_description', $lang['id'], 'content') ?></textarea>
+                                 </div>
+ 
+                             </div>
+-                         endforeach; 
++                        <?php endforeach; ?>
+                     </div>
+                 </div>
+                 <!-- /.card -->
+@@ -90,22 +90,22 @@
+ 
+         </form>
+ 
+-        
++        <?php
+         if (isset($_SESSION['form_data'])) {
+             unset($_SESSION['form_data']);
+         }
+-        
++        ?>
+ 
+     </div>
+ 
+ </div>
+ <!-- /.card -->
+- if (is_file(WWW . '/adminlte/ckeditor/ckeditor5.js')): 
++<?php if (is_file(WWW . '/adminlte/ckeditor/ckeditor5.js')): ?>
+     <script type="importmap">
+         {
+ 				"imports": {
+-					"ckeditor5": " PATH /adminlte/ckeditor/ckeditor5.js",
+-					"ckeditor5/": " PATH /adminlte/ckeditor/"
++					"ckeditor5": "<?= PATH ?>/adminlte/ckeditor/ckeditor5.js",
++					"ckeditor5/": "<?= PATH ?>/adminlte/ckeditor/"
+ 				}
+ 			}
+ 		</script>
+@@ -138,4 +138,4 @@
+                 });
+         })
+     </script>
+- endif; 
++<?php endif; ?>
+\ No newline at end of file
+diff --git a/www/app/views/admin/Category/edit.php b/www/app/views/admin/Category/edit.php
+index a581983..a07fc3f 100644
+--- a/www/app/views/admin/Category/edit.php
++++ b/www/app/views/admin/Category/edit.php
+@@ -1,9 +1,9 @@
+-
++<?php
+ 
+ /**
+  * $var array $category
+  */
+-
++?>
+ 
+ <!-- Default box -->
+ <div class="card">
+@@ -14,7 +14,7 @@
+ 
+             <div class="form-group">
+                 <label class="required" for="parent_id">Родительская категория</label>
+-                 new \app\widgets\menu\Menu([
++                <?php new \app\widgets\menu\Menu([
+                     'cache' => 0,
+                     'cacheKey' => 'admin_menu_select',
+                     'class' => 'form-control',
+@@ -26,68 +26,68 @@
+                     ],
+                     'prepend' => '<option value="0">Самостоятельная категория</option>',
+                     'tpl' => APP . '/widgets/menu/admin_select_tpl.php',
+-                ]) 
++                ]) ?>
+             </div>
+ 
+             <div class="card card-info card-outline card-tabs">
+                 <div class="card-header p-0 pt-1 border-bottom-0">
+                     <ul class="nav nav-tabs" id="custom-tabs-three-tab" role="tablist">
+-                         foreach (\wfm\App::$app->getProperty('languages') as $k => $lang): 
++                        <?php foreach (\wfm\App::$app->getProperty('languages') as $k => $lang): ?>
+                             <li class="nav-item">
+-                                <a class="nav-link  if ($lang['base']) echo 'active' " data-toggle="pill" href="# $k ">
+-                                    <img src=" PATH /assets/img/lang/ $k .png" alt="">
++                                <a class="nav-link <?php if ($lang['base']) echo 'active' ?>" data-toggle="pill" href="#<?= $k ?>">
++                                    <img src="<?= PATH ?>/assets/img/lang/<?= $k ?>.png" alt="">
+                                 </a>
+                             </li>
+-                         endforeach; 
++                        <?php endforeach; ?>
+                     </ul>
+                 </div>
+ 
+                 <div class="card-body">
+                     <div class="tab-content">
+-                         foreach (\wfm\App::$app->getProperty('languages') as $k => $lang): 
+-                            <div class="tab-pane fade  if ($lang['base']) echo 'active show' " id=" $k ">
++                        <?php foreach (\wfm\App::$app->getProperty('languages') as $k => $lang): ?>
++                            <div class="tab-pane fade <?php if ($lang['base']) echo 'active show' ?>" id="<?= $k ?>">
+ 
+                                 <div class="form-group">
+                                     <label class="required" for="title">Наименование</label>
+                                     <input type="text"
+-                                        name="category_description[ $lang['id'] ][title]"
++                                        name="category_description[<?= $lang['id'] ?>][title]"
+                                         class="form-control"
+                                         id="title"
+                                         placeholder="Наименование категории"
+-                                        value=" h((string)$category[$lang['id']]['title']) ">
++                                        value="<?= h((string)$category[$lang['id']]['title']) ?>">
+                                 </div>
+ 
+                                 <div class="form-group">
+                                     <label for="description">Мета-описание</label>
+                                     <input type="text"
+-                                        name="category_description[ $lang['id'] ][description]"
++                                        name="category_description[<?= $lang['id'] ?>][description]"
+                                         class="form-control"
+                                         id="description"
+                                         placeholder="Мета-описание"
+-                                        value=" h((string)$category[$lang['id']]['description']) ">
++                                        value="<?= h((string)$category[$lang['id']]['description']) ?>">
+                                 </div>
+ 
+                                 <div class="form-group">
+                                     <label for="keywords">Ключевые слова</label>
+                                     <input type="text"
+-                                        name="category_description[ $lang['id'] ][keywords]"
++                                        name="category_description[<?= $lang['id'] ?>][keywords]"
+                                         class="form-control"
+                                         id="keywords"
+                                         placeholder="Ключевые слова"
+-                                        value=" h((string)$category[$lang['id']]['keywords']) ">
++                                        value="<?= h((string)$category[$lang['id']]['keywords']) ?>">
+                                 </div>
+ 
+                                 <div class="form-group">
+                                     <label for="content">Описание категории</label>
+-                                    <textarea name="category_description[ $lang['id'] ][content]"
++                                    <textarea name="category_description[<?= $lang['id'] ?>][content]"
+                                         class="form-control editor"
+                                         id="content"
+                                         rows="3"
+-                                        placeholder="Описание категории"> h((string)$category[$lang['id']]['content']) </textarea>
++                                        placeholder="Описание категории"><?= h((string)$category[$lang['id']]['content']) ?></textarea>
+                                 </div>
+ 
+                             </div>
+-                         endforeach; 
++                        <?php endforeach; ?>
+                     </div>
+                 </div>
+                 <!-- /.card -->
+@@ -101,12 +101,12 @@
+ 
+ </div>
+ <!-- /.card -->
+- if (is_file(WWW . '/adminlte/ckeditor/ckeditor5.js')): 
++<?php if (is_file(WWW . '/adminlte/ckeditor/ckeditor5.js')): ?>
+     <script type="importmap">
+         {
+             "imports": {
+-                "ckeditor5": " PATH /adminlte/ckeditor/ckeditor5.js",
+-                "ckeditor5/": " PATH /adminlte/ckeditor/"
++                "ckeditor5": "<?= PATH ?>/adminlte/ckeditor/ckeditor5.js",
++                "ckeditor5/": "<?= PATH ?>/adminlte/ckeditor/"
+             }
+ 		}
+ 	</script>
+@@ -139,4 +139,4 @@
+                 });
+         })
+     </script>
+- endif; 
++<?php endif; ?>
+\ No newline at end of file
+diff --git a/www/app/views/admin/Category/index.php b/www/app/views/admin/Category/index.php
+index fe7fc1d..d6246f1 100644
+--- a/www/app/views/admin/Category/index.php
++++ b/www/app/views/admin/Category/index.php
+@@ -1,14 +1,14 @@
+-
++<?php
+ 
+ /**
+  * 
+  */
+-
++?>
+ <!-- Default box -->
+ <div class="card">
+ 
+     <div class="card-header">
+-        <a href=" ADMIN /category/add" class="btn btn-default btn-flat">
++        <a href="<?= ADMIN ?>/category/add" class="btn btn-default btn-flat">
+             <i class="fas fa-plus"></i>
+             Добавить категорию
+         </a>
+@@ -17,15 +17,15 @@
+     <div class="card-body">
+ 
+         <div class="table-responsive">
+-             new \app\widgets\menu\Menu([
++            <?php new \app\widgets\menu\Menu([
+                 'cache' => 0,
+                 'cacheKey' => 'admin_menu',
+                 'class' => 'table table-bordered',
+                 'tpl' => APP . '/widgets/menu/admin_table_tpl.php',
+                 'container' => 'table',
+-            ]); 
++            ]); ?>
+         </div>
+ 
+     </div>
+ </div>
+-<!-- /.card -->
++<!-- /.card -->
+\ No newline at end of file
+diff --git a/www/app/views/admin/parts/header.php b/www/app/views/admin/parts/header.php
+index fb11286..e1a4bb3 100644
+--- a/www/app/views/admin/parts/header.php
++++ b/www/app/views/admin/parts/header.php
+@@ -22,9 +22,9 @@
+     <link rel="stylesheet" href="<?= PATH ?>/adminlte/dist/css/adminlte.min.css">
+     <link rel="stylesheet" href="<?= PATH ?>/adminlte/main.css">
+ 
+-     if (is_file(WWW . '/adminlte/ckeditor/ckeditor5.css')): 
+-        <link rel="stylesheet" href=" PATH /adminlte/ckeditor/ckeditor5.css">
+-     endif; 
++    <?php if (is_file(WWW . '/adminlte/ckeditor/ckeditor5.css')): ?>
++        <link rel="stylesheet" href="<?= PATH ?>/adminlte/ckeditor/ckeditor5.css">
++    <?php endif; ?>
+ </head>
+ 
+ <body class="hold-transition sidebar-mini">
+@@ -39,4 +39,4 @@
+                 </li>
+             </ul>
+         </nav>
+-        <!-- /.navbar -->
++        <!-- /.navbar -->
+\ No newline at end of file
+diff --git a/www/app/views/admin/parts/sidebar.php b/www/app/views/admin/parts/sidebar.php
+index d99292b..2b1fbc7 100644
+--- a/www/app/views/admin/parts/sidebar.php
++++ b/www/app/views/admin/parts/sidebar.php
+@@ -48,7 +48,7 @@
+                             </a>
+                         </li>
+                         <li class="nav-item">
+-                            <a href=" ADMIN /category" class="nav-link">
++                            <a href="<?= ADMIN ?>/category" class="nav-link">
+                                 <i class="nav-icon fas fa-th"></i>
+                                 <p>Категории</p>
+                             </a>
+@@ -58,4 +58,4 @@
+                 <!-- /.sidebar-menu -->
+             </div>
+             <!-- /.sidebar -->
+-        </aside>
++        </aside>
+\ No newline at end of file
+diff --git a/www/app/widgets/menu/admin_select_tpl.php b/www/app/widgets/menu/admin_select_tpl.php
+index 4c6223c..a79b70c 100644
+--- a/www/app/widgets/menu/admin_select_tpl.php
++++ b/www/app/widgets/menu/admin_select_tpl.php
+@@ -1,11 +1,11 @@
+-
++<?php
+ $parent_id = \wfm\App::$app->getProperty('parent_id');
+ $get_id = get('id');
++?>
+ 
+-
+-<option value=" $id "  if ($id == $parent_id) echo ' selected';   if ($get_id == $id) echo ' disabled'; >
+-     $tab . $category['title'] 
++<option value="<?= $id ?>" <?php if ($id == $parent_id) echo ' selected'; ?> <?php if ($get_id == $id) echo ' disabled'; ?>>
++    <?= $tab . $category['title'] ?>
+ </option>
+- if(isset($category['children'])): 
+-     $this->getMenuHtml($category['children'], '&nbsp;' . $tab. '-') 
+- endif; 
++<?php if(isset($category['children'])): ?>
++    <?= $this->getMenuHtml($category['children'], '&nbsp;' . $tab. '-') ?>
++<?php endif; ?>
+diff --git a/www/app/widgets/menu/admin_table_tpl.php b/www/app/widgets/menu/admin_table_tpl.php
+index 0449999..0246556 100644
+--- a/www/app/widgets/menu/admin_table_tpl.php
++++ b/www/app/widgets/menu/admin_table_tpl.php
+@@ -1,4 +1,4 @@
+-
++<?php
+ $parent = isset($category['children']);
+ if (!$parent) {
+     $delete = '<a class="btn btn-danger btn-sm delete" href="' . ADMIN . '/category/delete?id=' . $id . '"><i class="far fa-trash-alt"></i></a>';
+@@ -7,14 +7,14 @@ if (!$parent) {
+ }
+ 
+ $edit = '<a class="btn btn-info btn-sm" href="' . ADMIN . '/category/edit?id=' . $id . '"><i class="fas fa-pencil-alt"></i></a>';
+-
++?>
+ <tr>
+     <td>
+-        <a href=" ADMIN /category/edit/?id= $id " style="padding-left:  strlen($tab) * 3 px"> $tab . $category['title'] </a>
++        <a href="<?= ADMIN ?>/category/edit/?id=<?= $id ?>" style="padding-left: <?= strlen($tab) * 3 ?>px"><?= $tab . $category['title'] ?></a>
+     </td>
+-    <td width="50"> $edit </td>
+-    <td width="50"> $delete </td>
++    <td width="50"><?= $edit ?></td>
++    <td width="50"><?= $delete ?></td>
+ </tr>
+- if (isset($category['children'])): 
+-     $this->getMenuHtml($category['children'], $tab . '&#8211;'); 
+- endif; 
++<?php if (isset($category['children'])): ?>
++    <?= $this->getMenuHtml($category['children'], $tab . '&#8211;'); ?>
++<?php endif; ?>
+\ No newline at end of file
+diff --git a/www/public/adminlte/main.js b/www/public/adminlte/main.js
+index e69de29..d6c465b 100644
+--- a/www/public/adminlte/main.js
++++ b/www/public/adminlte/main.js
+@@ -0,0 +1,7 @@
++$(function () {
++    $('.delete').click(function () {
++        let res = confirm('Подтвердите действие')
++        if (!res)
++            return false
++    })
++})
+\ No newline at end of file
+diff --git a/www/vendor/wfm/helpers/functions.php b/www/vendor/wfm/helpers/functions.php
+index cb29f94..93c17ca 100644
+--- a/www/vendor/wfm/helpers/functions.php
++++ b/www/vendor/wfm/helpers/functions.php
+@@ -104,3 +104,13 @@ function get_field_value(string $name): string
+     }
+     return $data;
+ }
++
++function get_field_array_value($name,  $key, $index): string
++{
++    if (isset($_SESSION['form_data'][$name][$key][$index])) {
++        $data = h($_SESSION['form_data'][$name][$key][$index]);
++    } else {
++        $data = '';
++    }
++    return $data;
++}
