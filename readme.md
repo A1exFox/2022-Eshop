@@ -4,6 +4,7 @@
 
 #### Chapter #3: Developing the admin panel for an e-commerce CMS
 
+* [3.04.Managе.Categories](../../archive/refs/heads/3.04.Managе.Categories.zip)
 * [3.03.Dashboard](../../archive/refs/heads/3.03.Dashboard.zip)
 * [3.02.Admin.access.control](../../archive/refs/heads/3.02.Admin.access.control.zip)
 
