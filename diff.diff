@@ -342,7 +342,7 @@ index 0000000..44e3e22
 +    }
 +}
 diff --git a/www/app/views/admin/Category/add.php b/www/app/views/admin/Category/add.php
-index 9d58258..f15aab8 100644
+index 1c223f8..48ba688 100644
 --- a/www/app/views/admin/Category/add.php
 +++ b/www/app/views/admin/Category/add.php
 @@ -7,7 +7,7 @@
@@ -439,7 +439,7 @@ index 9d58258..f15aab8 100644
                      </div>
                  </div>
                  <!-- /.card -->
-@@ -90,22 +90,22 @@
+@@ -90,26 +90,26 @@
  
          </form>
  
@@ -455,27 +455,38 @@ index 9d58258..f15aab8 100644
  
  </div>
  <!-- /.card -->
-- if (is_file(WWW . '/adminlte/ckeditor/ckeditor5.js')): 
-+<?php if (is_file(WWW . '/adminlte/ckeditor/ckeditor5.js')): ?>
-     <script type="importmap">
-         {
- 				"imports": {
--					"ckeditor5": " PATH /adminlte/ckeditor/ckeditor5.js",
--					"ckeditor5/": " PATH /adminlte/ckeditor/"
-+					"ckeditor5": "<?= PATH ?>/adminlte/ckeditor/ckeditor5.js",
-+					"ckeditor5/": "<?= PATH ?>/adminlte/ckeditor/"
- 				}
- 			}
- 		</script>
-@@ -138,4 +138,4 @@
-                 });
-         })
+- if (is_file(WWW . '/adminlte/ckfinder/ckfinder.js')): 
++<?php if (is_file(WWW . '/adminlte/ckfinder/ckfinder.js')): ?>
+     <script src="https://cdn.ckeditor.com/ckeditor5/12.4.0/classic/ckeditor.js"></script>
+-    <script src=" PATH /adminlte/ckfinder/ckfinder.js"></script>
++    <script src="<?= PATH ?>/adminlte/ckfinder/ckfinder.js"></script>
+     <script type="text/javascript">
+  
+     document.querySelectorAll('.editor').forEach((node, index) => {
+         ClassicEditor
+         .create( node, {
+             ckfinder: {
+-                uploadUrl: ' PATH /adminlte/ckfinder/core/connector/php/connector.php?command=QuickUpload&type=Files&responseType=json'
++                uploadUrl: '<?= PATH ?>/adminlte/ckfinder/core/connector/php/connector.php?command=QuickUpload&type=Files&responseType=json'
+             },
+             toolbar: [
+                 "undo", "redo", "|",
+@@ -124,8 +124,8 @@
+         } );
+     });
+     </script>
+- else: 
++<?php else: ?>
+     <script>
+-        console.error("File: \" PATH /adminlte/ckfinder/ckfinder.js\" not found.\nMore info in readme.md")
++        console.error("File: \"<?= PATH ?>/adminlte/ckfinder/ckfinder.js\" not found.\nMore info in readme.md")
      </script>
 - endif; 
+\ No newline at end of file
 +<?php endif; ?>
 \ No newline at end of file
 diff --git a/www/app/views/admin/Category/edit.php b/www/app/views/admin/Category/edit.php
-index a581983..a07fc3f 100644
+index c11d3f5..7a10209 100644
 --- a/www/app/views/admin/Category/edit.php
 +++ b/www/app/views/admin/Category/edit.php
 @@ -1,9 +1,9 @@
@@ -584,25 +595,35 @@ index a581983..a07fc3f 100644
                      </div>
                  </div>
                  <!-- /.card -->
-@@ -101,12 +101,12 @@
+@@ -101,16 +101,16 @@
  
  </div>
  <!-- /.card -->
-- if (is_file(WWW . '/adminlte/ckeditor/ckeditor5.js')): 
-+<?php if (is_file(WWW . '/adminlte/ckeditor/ckeditor5.js')): ?>
-     <script type="importmap">
-         {
-             "imports": {
--                "ckeditor5": " PATH /adminlte/ckeditor/ckeditor5.js",
--                "ckeditor5/": " PATH /adminlte/ckeditor/"
-+                "ckeditor5": "<?= PATH ?>/adminlte/ckeditor/ckeditor5.js",
-+                "ckeditor5/": "<?= PATH ?>/adminlte/ckeditor/"
-             }
- 		}
- 	</script>
-@@ -139,4 +139,4 @@
-                 });
-         })
+- if (is_file(WWW . '/adminlte/ckfinder/ckfinder.js')): 
++<?php if (is_file(WWW . '/adminlte/ckfinder/ckfinder.js')): ?>
+     <script src="https://cdn.ckeditor.com/ckeditor5/12.4.0/classic/ckeditor.js"></script>
+-    <script src=" PATH /adminlte/ckfinder/ckfinder.js"></script>
++    <script src="<?= PATH ?>/adminlte/ckfinder/ckfinder.js"></script>
+     <script type="text/javascript">
+  
+     document.querySelectorAll('.editor').forEach((node, index) => {
+         ClassicEditor
+         .create( node, {
+             ckfinder: {
+-                uploadUrl: ' PATH /adminlte/ckfinder/core/connector/php/connector.php?command=QuickUpload&type=Files&responseType=json'
++                uploadUrl: '<?= PATH ?>/adminlte/ckfinder/core/connector/php/connector.php?command=QuickUpload&type=Files&responseType=json'
+             },
+             toolbar: [
+                 "undo", "redo", "|",
+@@ -125,8 +125,8 @@
+         } );
+     });
+     </script>
+- else: 
++<?php else: ?>
+     <script>
+-        console.error("File: \" PATH /adminlte/ckfinder/ckfinder.js\" not found.\nMore info in readme.md")
++        console.error("File: \"<?= PATH ?>/adminlte/ckfinder/ckfinder.js\" not found.\nMore info in readme.md")
      </script>
 - endif; 
 +<?php endif; ?>
@@ -648,30 +669,6 @@ index fe7fc1d..d6246f1 100644
  </div>
 -<!-- /.card -->
 +<!-- /.card -->
-\ No newline at end of file
-diff --git a/www/app/views/admin/parts/header.php b/www/app/views/admin/parts/header.php
-index fb11286..e1a4bb3 100644
---- a/www/app/views/admin/parts/header.php
-+++ b/www/app/views/admin/parts/header.php
-@@ -22,9 +22,9 @@
-     <link rel="stylesheet" href="<?= PATH ?>/adminlte/dist/css/adminlte.min.css">
-     <link rel="stylesheet" href="<?= PATH ?>/adminlte/main.css">
- 
--     if (is_file(WWW . '/adminlte/ckeditor/ckeditor5.css')): 
--        <link rel="stylesheet" href=" PATH /adminlte/ckeditor/ckeditor5.css">
--     endif; 
-+    <?php if (is_file(WWW . '/adminlte/ckeditor/ckeditor5.css')): ?>
-+        <link rel="stylesheet" href="<?= PATH ?>/adminlte/ckeditor/ckeditor5.css">
-+    <?php endif; ?>
- </head>
- 
- <body class="hold-transition sidebar-mini">
-@@ -39,4 +39,4 @@
-                 </li>
-             </ul>
-         </nav>
--        <!-- /.navbar -->
-+        <!-- /.navbar -->
 \ No newline at end of file
 diff --git a/www/app/views/admin/parts/sidebar.php b/www/app/views/admin/parts/sidebar.php
 index d99292b..2b1fbc7 100644

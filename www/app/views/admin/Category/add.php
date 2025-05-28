@@ -100,42 +100,32 @@
 
 </div>
 <!-- /.card -->
- if (is_file(WWW . '/adminlte/ckeditor/ckeditor5.js')): 
-    <script type="importmap">
-        {
-				"imports": {
-					"ckeditor5": " PATH /adminlte/ckeditor/ckeditor5.js",
-					"ckeditor5/": " PATH /adminlte/ckeditor/"
-				}
-			}
-		</script>
-    <script type="module">
-        import {
-            ClassicEditor,
-            Essentials,
-            Paragraph,
-            Bold,
-            Italic,
-            Font
-        } from 'ckeditor5';
-
-        document.querySelectorAll('.editor').forEach((node, index) => {
-            ClassicEditor
-                .create(node, {
-                    licenseKey: 'GPL', // Or <YOUR_LICENSE_KEY>
-                    plugins: [Essentials, Paragraph, Bold, Italic, Font],
-                    toolbar: [
-                        'undo', 'redo', '|', 'bold', 'italic', '|',
-                        'fontSize', 'fontFamily', 'fontColor', 'fontBackgroundColor'
-                    ],
-                    licenseKey: 'GPL'
-                })
-                .then(editor => {
-                    window.editor = editor;
-                })
-                .catch(error => {
-                    console.error(error);
-                });
-        })
+ if (is_file(WWW . '/adminlte/ckfinder/ckfinder.js')): 
+    <script src="https://cdn.ckeditor.com/ckeditor5/12.4.0/classic/ckeditor.js"></script>
+    <script src=" PATH /adminlte/ckfinder/ckfinder.js"></script>
+    <script type="text/javascript">
+ 
+    document.querySelectorAll('.editor').forEach((node, index) => {
+        ClassicEditor
+        .create( node, {
+            ckfinder: {
+                uploadUrl: ' PATH /adminlte/ckfinder/core/connector/php/connector.php?command=QuickUpload&type=Files&responseType=json'
+            },
+            toolbar: [
+                "undo", "redo", "|",
+                "ckfinder", "imageUpload", "|",
+                "bold", "italic", "heading", "|",
+                "blockQuote", "numberedList", "bulletedList", "insertTable", "|",
+                "link", "mediaEmbed"
+            ]
+        } )
+        .catch( function( error ) {
+            console.error( error );
+        } );
+    });
+    </script>
+ else: 
+    <script>
+        console.error("File: \" PATH /adminlte/ckfinder/ckfinder.js\" not found.\nMore info in readme.md")
     </script>
  endif; 

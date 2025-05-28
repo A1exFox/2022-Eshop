@@ -15,13 +15,18 @@ RUN set -eux && \
         git \
         zip \
         linux-headers \
-        libpng-dev && \
+        libpng-dev libjpeg-turbo-dev libwebp-dev freetype-dev && \
     \
     pecl channel-update \
         pecl.php.net && \
     \
     pecl install -f \
         xdebug${XDEBUG_VER} && \
+    \
+    docker-php-ext-configure gd \
+		--with-jpeg \
+		--with-webp \
+		--with-freetype && \
     \
     docker-php-ext-install \
         pdo \
