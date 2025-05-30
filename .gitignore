@@ -8,8 +8,7 @@ www/vendor/*
 # Details in: www/config/params.php
 www/config/smtp.php
 
-# Download from: https://ckeditor.com/ckeditor-5/download/#self-hosted-zip
-# Installation guide: https://ckeditor.com/docs/ckeditor5/latest/getting-started/installation/self-hosted/quick-start.html#installing-ckeditor-5-from-a-zip-file
-# Example code: www/public/adminlte/ckeditor/example.html
-www/public/adminlte/ckeditor/*
-!www/public/adminlte/ckeditor/example.html
+
+www/public/adminlte/ckfinder/*
+!www/public/adminlte/ckfinder/config.php
+www/public/uploads/.ckfinder

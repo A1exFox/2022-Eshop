@@ -22,4 +22,27 @@ class Product extends AppModel
 
         return $query;
     }
+
+    public function get_downloads(string $q): array
+    {
+        $data = [];
+        $downloads = R::getAssoc(
+            "SELECT download_id, name
+            FROM download_description
+            WHERE name 
+                LIKE ? 
+                LIMIT 10",
+            ["%$q%"]
+        );
+
+        if ($downloads) {
+            $i = 0;
+            foreach ($downloads as $id => $title) {
+                $data['items'][$i]['id'] = $id;
+                $data['items'][$i]['text'] = $title;
+                $i++;
+            }
+        }
+        return $data;
+    }
 }
