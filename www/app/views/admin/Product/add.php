@@ -205,28 +205,24 @@
     }
 </script>
 
-<script>
-    window.editors = {};
+<script src="https://cdn.ckeditor.com/ckeditor5/12.4.0/classic/ckeditor.js"></script>
+<script src="<?= PATH ?>/adminlte/ckfinder/ckfinder.js"></script>
+<script type="text/javascript">
     document.querySelectorAll('.editor').forEach((node, index) => {
         ClassicEditor
             .create(node, {
                 ckfinder: {
-                    uploadUrl: '<?= PATH ?>/adminlte/ckfinder/core/connector/php/connector.php?command=QuickUpload&type=Files&responseType=json',
+                    uploadUrl: '<?= PATH ?>/adminlte/ckfinder/core/connector/php/connector.php?command=QuickUpload&type=Files&responseType=json'
                 },
-                toolbar: ['ckfinder', '|', 'heading', '|', 'bold', 'italic', '|', 'undo', 'redo', '|', 'link', 'bulletedList', 'numberedList', 'insertTable', 'blockQuote'],
-                image: {
-                    toolbar: ['imageTextAlternative', '|', 'imageStyle:alignLeft', 'imageStyle:alignCenter', 'imageStyle:alignRight'],
-                    styles: [
-                        'alignLeft',
-                        'alignCenter',
-                        'alignRight'
-                    ]
-                }
+                toolbar: [
+                    "undo", "redo", "|",
+                    "ckfinder", "imageUpload", "|",
+                    "bold", "italic", "heading", "|",
+                    "blockQuote", "numberedList", "bulletedList", "insertTable", "|",
+                    "link", "mediaEmbed"
+                ]
             })
-            .then(newEditor => {
-                window.editors[index] = newEditor
-            })
-            .catch(error => {
+            .catch(function(error) {
                 console.error(error);
             });
     });
