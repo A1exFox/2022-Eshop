@@ -14,7 +14,7 @@ function debug(mixed $data, bool $die = false): void
 
 function h(string $str): string
 {
-    $str = htmlspecialchars($str);
+    $str = htmlspecialchars($str, ENT_QUOTES);
     return $str;
 }
 

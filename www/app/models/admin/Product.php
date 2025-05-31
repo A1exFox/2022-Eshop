@@ -139,6 +139,88 @@ class Product extends AppModel
         }
     }
 
+    public function update_product($id): bool
+    {
+        // $lang = (int)App::$app->getProperty('language')['id'];
+        R::begin();
+        try {
+
+            $product = R::load('product', $id);
+            if (!$product) {
+                return false;
+            }
+            $product->category_id = post('parent_id', 'i');
+            $product->price = post('price', 'f');
+            $product->old_price = post('old_price', 'f');
+            $product->status = post('status') ? 1 : 0;
+            $product->hit = post('hit') ? 1 : 0;
+            $product->img = post('img') ? ltrim(post('img'), '/') : NO_IMAGE;
+            $product->is_download = post('is_download') ? 1 : 0;
+
+            $product_id = R::store($product);
+
+            foreach ($_POST['product_description'] as $lang_id => $item) {
+                $data = [
+                    $item['title'],
+                    $item['content'],
+                    $item['exerpt'],
+                    $item['keywords'],
+                    $item['description'],
+                    $id,
+                    $lang_id,
+                ];
+                R::exec(
+                    "UPDATE product_description 
+                        SET title = ?, content = ?, exerpt = ?, keywords = ?, description = ?
+                        WHERE product_id = ?
+                            AND language_id = ?",
+                    $data
+                );
+            }
+
+            if (!isset($_POST['gallery'])) {
+                R::exec("DELETE FROM product_gallery
+                    WHERE product_id = ?", [$id]);
+            }
+
+            if (isset($_POST['gallery']) && is_array($_POST['gallery'])) {
+
+                $gallery = $this->get_gallery($id);
+
+                if (
+                    (count($gallery) != count($_POST['gallery'])) ||
+                    (array_diff($gallery, $_POST['gallery'])) ||
+                    (array_diff($gallery, $_POST['gallery']))
+                ) {
+                    R::exec("DELETE FROM product_gallery WHERE product_id = ?", [$id]);
+                    $sql = "INSERT INTO product_gallery (product_id, img) VALUES ";
+                    foreach ($_POST['gallery'] as $item) {
+                        $sql .= "($id, ?),";
+                    }
+                    $sql = rtrim($sql, ',');
+                    R::exec($sql, $_POST['gallery']);
+                }
+            }
+
+            R::exec("DELETE FROM product_download WHERE product_id = ?", [$id]);
+
+            if ($product->is_download) {
+                $download_id = post('is_download', 'i');
+                R::exec(
+                    "INSERT INTO product_download (product_id,download_id)
+                    VALUES (?,?)",
+                    [$product_id, $download_id],
+                );
+            }
+
+            R::commit();
+            return true;
+        } catch (\Exception $e) {
+            R::rollback();
+            return false;
+        }
+    }
+
     public function get_product(int $id): array|false
     {
         $product = R::getAssoc("SELECT pd.language_id, pd.*, p.*
@@ -172,8 +254,9 @@ class Product extends AppModel
                 AND dd.language_id = ?", [$product_id, $lang_id]);
     }
 
-    public function get_gallery($id): ?array
+    public function get_gallery($id)
     {
-        return R::getCell("SELECT img FROM product_gallery WHERE product_id =?", [$id]);
+        $query = R::getCol("SELECT img FROM product_gallery WHERE product_id =?", [$id]);
+        return $query;
     }
 }

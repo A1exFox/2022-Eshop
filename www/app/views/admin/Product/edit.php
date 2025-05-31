@@ -114,7 +114,7 @@
                                 onclick="popupGalleryImage(); return false;">Загрузить
                             </button>
                             <div id="gallery-img-output" class="upload-images gallery-image">
-                                <?php if (!empty($gallery)): ?>
+                                <?php if (!empty($gallery) && is_array($gallery)): ?>
                                     <?php foreach ($gallery as $item): ?>
                                         <div class="product-img-upload">
                                             <img src="<?= $item ?>">
