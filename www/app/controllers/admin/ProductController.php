@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace app\controllers\admin;
 
+use Exception;
 use wfm\App;
 use wfm\Pagination;
 
@@ -17,7 +18,7 @@ class ProductController extends AppController
     {
         $lang = App::$app->getProperty('language');
         $page = get('page');
-        $perpage = 10;
+        $perpage = 5;
         $total = \RedBeanPHP\R::count('product');
         $pagination = new Pagination($page, $perpage, $total);
         $start = $pagination->getStart();
@@ -51,5 +52,25 @@ class ProductController extends AppController
         $downloads = $this->model->get_downloads($q);
         echo json_encode($downloads);
         die;
+    }
+
+    public function editAction()
+    {
+        $id = get('id');
+
+        if (!empty($_POST)) {
+        }
+
+        $product = $this->model->get_product($id);
+        if (!$product) {
+            throw new Exception("Not found product", 404);
+        }
+        $gallery = $this->model->get_gallery($id);
+        $lang = App::$app->getProperty('language')['id'];
+        App::$app->setProperty('parent_id', $product[$lang]['category_id']);
+
+        $title = "Редактирование товара";
+        $this->setMeta("Админка::$title");
+        $this->set(compact('title', 'product', 'gallery'));
     }
 }

@@ -138,4 +138,42 @@ class Product extends AppModel
             return false;
         }
     }
+
+    public function get_product(int $id): array|false
+    {
+        $product = R::getAssoc("SELECT pd.language_id, pd.*, p.*
+            FROM product_description pd
+            JOIN product p
+                ON p.id = pd.product_id
+            WHERE pd.product_id = ?", [$id]);
+
+        if (!$product) {
+            return false;
+        }
+
+        $key = key($product);
+
+        if ($product[$key]['is_download']) {
+            $download_info = $this->get_product_download($id);
+            $product[$key]['download_id'] = $download_info['download_id'];
+            $product[$key]['download_name'] = $download_info['name'];
+        }
+        return $product;
+    }
+
+    public function get_product_download(int $product_id): array
+    {
+        $lang_id = App::$app->getProperty('language')['id'];
+        return R::getRow("SELECT pd.download_id, dd.name
+            FROM product_download pd
+            JOIN download_description dd
+                ON pd.download_id = dd.download_id
+            WHERE pd.product_id = ?
+                AND dd.language_id = ?", [$product_id, $lang_id]);
+    }
+
+    public function get_gallery($id): ?array
+    {
+        return R::getCell("SELECT img FROM product_gallery WHERE product_id =?", [$id]);
+    }
 }
