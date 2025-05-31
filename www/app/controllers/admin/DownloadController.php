@@ -1,0 +1,30 @@
+<?php
+
+declare(strict_types=1);
+
+namespace app\controllers\admin;
+
+use wfm\App;
+use RedBeanPHP\R;
+use wfm\Pagination;
+
+/**
+ * @property \app\models\admin\Download $model
+ */
+
+class DownloadController extends AppController
+{
+    public function indexAction()
+    {
+        $lang = App::$app->getProperty('language');
+        $page = get('page');
+        $perpage = 20;
+        $total = R::count('download');
+        $pagination = new Pagination($page, $perpage, $total);
+        $start = $pagination->getStart();
+        $downloads = $this->model->get_downloads($lang, $start, $perpage);
+        $title = "Файлы(цифровые товары)";
+        $this->setMeta("Админка::$title");
+        $this->set(compact('title', 'downloads', 'pagination', 'total'));
+    }
+}
