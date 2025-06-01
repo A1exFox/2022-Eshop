@@ -1,0 +1,899 @@
+diff --git a/www/app/controllers/admin/ProductController.php b/www/app/controllers/admin/ProductController.php
+new file mode 100644
+index 0000000..70b88a7
+--- /dev/null
++++ b/www/app/controllers/admin/ProductController.php
+@@ -0,0 +1,84 @@
++<?php
++
++declare(strict_types=1);
++
++namespace app\controllers\admin;
++
++use Exception;
++use wfm\App;
++use wfm\Pagination;
++
++/**
++ * @property \app\models\admin\Product $model
++ */
++
++class ProductController extends AppController
++{
++    public function indexAction()
++    {
++        $lang = App::$app->getProperty('language');
++        $page = get('page');
++        $perpage = 5;
++        $total = \RedBeanPHP\R::count('product');
++        $pagination = new Pagination($page, $perpage, $total);
++        $start = $pagination->getStart();
++        $products = $this->model->get_products($lang, $start, $perpage);
++
++        $title = 'Список товаров';
++        $this->setMeta("Админка::$title");
++        $this->set(compact('title', 'products', 'pagination', 'total'));
++    }
++
++    public function addAction()
++    {
++        if (!empty($_POST)) {
++            if ($this->model->product_validate()) {
++                if ($this->model->save_product()) {
++                    $_SESSION['success'] = "Товар добавлен";
++                } else {
++                    $_SESSION['errors'] = "Ошибка добавления товара";
++                }
++            }
++            redirect();
++        }
++        $title = 'Новый товар';
++        $this->setMeta("Админка::$title");
++        $this->set(compact('title'));
++    }
++
++    public function getDownloadAction()
++    {
++        $q = get('q', 's');
++        $downloads = $this->model->get_downloads($q);
++        echo json_encode($downloads);
++        die;
++    }
++
++    public function editAction()
++    {
++        $id = get('id');
++
++        if (!empty($_POST)) {
++            if ($this->model->product_validate()) {
++                if ($this->model->update_product($id)) {
++                    $_SESSION['success'] = "Товар сохранен";
++                } else {
++                    $_SESSION['errors'] = "Ошибка добавления товара";
++                }
++            }
++            redirect();
++        }
++
++        $product = $this->model->get_product($id);
++        if (!$product) {
++            throw new Exception("Not found product", 404);
++        }
++        $gallery = $this->model->get_gallery($id);
++        $lang = App::$app->getProperty('language')['id'];
++        App::$app->setProperty('parent_id', $product[$lang]['category_id']);
++
++        $title = "Редактирование товара";
++        $this->setMeta("Админка::$title");
++        $this->set(compact('title', 'product', 'gallery'));
++    }
++}
+diff --git a/www/app/models/admin/Product.php b/www/app/models/admin/Product.php
+new file mode 100644
+index 0000000..cab9f46
+--- /dev/null
++++ b/www/app/models/admin/Product.php
+@@ -0,0 +1,262 @@
++<?php
++
++declare(strict_types=1);
++
++namespace app\models\admin;
++
++use wfm\App;
++use RedBeanPHP\R;
++use app\models\AppModel;
++
++class Product extends AppModel
++{
++    public function get_products(array $lang, int $start, int $perpage): array
++    {
++        $sql = "SELECT p.*, pd.title
++            FROM product p
++            JOIN product_description pd
++                ON p.id = pd.product_id
++            WHERE pd.language_id = ?
++                LIMIT $start,$perpage";
++
++        $query = R::getAll($sql, [$lang['id']]);
++
++        return $query;
++    }
++
++    public function get_downloads(string $q): array
++    {
++        $data = [];
++        $downloads = R::getAssoc(
++            "SELECT download_id, name
++            FROM download_description
++            WHERE name 
++                LIKE ? 
++                LIMIT 10",
++            ["%$q%"]
++        );
++
++        if ($downloads) {
++            $i = 0;
++            foreach ($downloads as $id => $title) {
++                $data['items'][$i]['id'] = $id;
++                $data['items'][$i]['text'] = $title;
++                $i++;
++            }
++        }
++        return $data;
++    }
++
++    public function product_validate(): bool
++    {
++        $errors = '';
++        if (!is_numeric($_POST['price'])) {
++            $errors .= "Цена должна иметь числовое значение<br>";
++        }
++        if (!is_numeric($_POST['old_price'])) {
++            $errors .= "Старая цена должна иметь числовое значение<br>";
++        }
++
++        foreach ($_POST['product_description'] as $lang_id => $item) {
++            $item['title'] = trim($item['title']);
++            $item['exerpt'] = trim($item['exerpt']);
++            if (empty($item['title'])) {
++                $errors .= "Наименование не заполненео на вкладке $lang_id<br>";
++            }
++            if (empty($item['exerpt'])) {
++                $errors .= "Краткое описание не заполнено на вкладке $lang_id<br>";
++            }
++        }
++        if ($errors) {
++            $_SESSION['errors'] = $errors;
++            $_SESSION['form_data'] = false;
++            return false;
++        }
++        return true;
++    }
++
++    public function save_product(): bool
++    {
++        $lang = (int)App::$app->getProperty('language')['id'];
++        R::begin();
++        try {
++            $product = R::dispense('product');
++            $product->category_id = post('parent_id', 'i');
++            $product->price = post('price', 'f');
++            $product->old_price = post('old_price', 'f');
++            $product->status = post('status') ? 1 : 0;
++            $product->hit = post('hit') ? 1 : 0;
++            $product->img = post('img') ? ltrim(post('img'), '/') : NO_IMAGE;
++            $product->is_download = post('is_download') ? 1 : 0;
++
++            $product_id = R::store($product);
++            $product->slug = AppModel::create_slug('product', 'slug', $_POST['product_description'][$lang]['title'], (int)$product_id);
++            R::store($product);
++
++            foreach ($_POST['product_description'] as $lang_id => $item) {
++                $fields = 'product_id, language_id, title, content, exerpt, keywords, description';
++                $values = '?,?,?,?,?,?,?';
++                $data = [
++                    $product_id,
++                    $lang_id,
++                    $item['title'],
++                    $item['content'],
++                    $item['exerpt'],
++                    $item['keywords'],
++                    $item['description'],
++                ];
++                R::exec(
++                    "INSERT INTO product_description ($fields)
++                    VALUES ($values)",
++                    $data
++                );
++            }
++
++            if (isset($_POST['gallery']) && is_array($_POST['gallery'])) {
++                $sql = "INSERT INTO product_gallery (product_id, img) VALUES ";
++                foreach ($_POST['gallery'] as $item) {
++                    $sql .= "($product_id, ?),";
++                }
++                $sql = rtrim($sql, ',');
++                R::exec($sql, $_POST['gallery']);
++            }
++
++            if ($product->is_download) {
++                $download_id = post('is_download', 'i');
++                R::exec(
++                    "INSERT INTO product_download (product_id,download_id)
++                    VALUES (?,?)",
++                    [$product_id, $download_id],
++                );
++            }
++
++            R::commit();
++            return true;
++        } catch (\Exception $e) {
++            R::rollback();
++            $_SESSION['form-data'] = $_POST;
++            return false;
++        }
++    }
++
++    public function update_product($id): bool
++    {
++        // $lang = (int)App::$app->getProperty('language')['id'];
++        R::begin();
++        try {
++
++            $product = R::load('product', $id);
++            if (!$product) {
++                return false;
++            }
++            $product->category_id = post('parent_id', 'i');
++            $product->price = post('price', 'f');
++            $product->old_price = post('old_price', 'f');
++            $product->status = post('status') ? 1 : 0;
++            $product->hit = post('hit') ? 1 : 0;
++            $product->img = post('img') ? ltrim(post('img'), '/') : NO_IMAGE;
++            $product->is_download = post('is_download') ? 1 : 0;
++
++            $product_id = R::store($product);
++
++            foreach ($_POST['product_description'] as $lang_id => $item) {
++                $data = [
++                    $item['title'],
++                    $item['content'],
++                    $item['exerpt'],
++                    $item['keywords'],
++                    $item['description'],
++                    $id,
++                    $lang_id,
++                ];
++                R::exec(
++                    "UPDATE product_description 
++                        SET title = ?, content = ?, exerpt = ?, keywords = ?, description = ?
++                        WHERE product_id = ?
++                            AND language_id = ?",
++                    $data
++                );
++            }
++
++            if (!isset($_POST['gallery'])) {
++                R::exec("DELETE FROM product_gallery
++                    WHERE product_id = ?", [$id]);
++            }
++
++            if (isset($_POST['gallery']) && is_array($_POST['gallery'])) {
++
++                $gallery = $this->get_gallery($id);
++
++                if (
++                    (count($gallery) != count($_POST['gallery'])) ||
++                    (array_diff($gallery, $_POST['gallery'])) ||
++                    (array_diff($gallery, $_POST['gallery']))
++                ) {
++                    R::exec("DELETE FROM product_gallery WHERE product_id = ?", [$id]);
++                    $sql = "INSERT INTO product_gallery (product_id, img) VALUES ";
++                    foreach ($_POST['gallery'] as $item) {
++                        $sql .= "($id, ?),";
++                    }
++                    $sql = rtrim($sql, ',');
++                    R::exec($sql, $_POST['gallery']);
++                }
++            }
++
++            R::exec("DELETE FROM product_download WHERE product_id = ?", [$id]);
++
++            if ($product->is_download) {
++                $download_id = post('is_download', 'i');
++                R::exec(
++                    "INSERT INTO product_download (product_id,download_id)
++                    VALUES (?,?)",
++                    [$product_id, $download_id],
++                );
++            }
++
++            R::commit();
++            return true;
++        } catch (\Exception $e) {
++            R::rollback();
++            return false;
++        }
++    }
++
++    public function get_product(int $id): array|false
++    {
++        $product = R::getAssoc("SELECT pd.language_id, pd.*, p.*
++            FROM product_description pd
++            JOIN product p
++                ON p.id = pd.product_id
++            WHERE pd.product_id = ?", [$id]);
++
++        if (!$product) {
++            return false;
++        }
++
++        $key = key($product);
++
++        if ($product[$key]['is_download']) {
++            $download_info = $this->get_product_download($id);
++            $product[$key]['download_id'] = $download_info['download_id'];
++            $product[$key]['download_name'] = $download_info['name'];
++        }
++        return $product;
++    }
++
++    public function get_product_download(int $product_id): array
++    {
++        $lang_id = App::$app->getProperty('language')['id'];
++        return R::getRow("SELECT pd.download_id, dd.name
++            FROM product_download pd
++            JOIN download_description dd
++                ON pd.download_id = dd.download_id
++            WHERE pd.product_id = ?
++                AND dd.language_id = ?", [$product_id, $lang_id]);
++    }
++
++    public function get_gallery($id)
++    {
++        $query = R::getCol("SELECT img FROM product_gallery WHERE product_id =?", [$id]);
++        return $query;
++    }
++}
+diff --git a/www/app/views/admin/Product/add.php b/www/app/views/admin/Product/add.php
+index 62303eb..561f38e 100644
+--- a/www/app/views/admin/Product/add.php
++++ b/www/app/views/admin/Product/add.php
+@@ -7,7 +7,7 @@
+ 
+             <div class="form-group">
+                 <label class="required" for="parent_id">Категория</label>
+-                 new \app\widgets\menu\Menu([
++                <?php new \app\widgets\menu\Menu([
+                     'cache' => 0,
+                     'cacheKey' => 'admin_menu_select',
+                     'class' => 'form-control',
+@@ -18,20 +18,20 @@
+                         'required' => 'required',
+                     ],
+                     'tpl' => APP . '/widgets/menu/admin_select_tpl.php',
+-                ]) 
++                ]) ?>
+             </div>
+ 
+             <div class="row">
+                 <div class="col-sm-6">
+                     <div class="form-group">
+                         <label class="required" for="price">Цена</label>
+-                        <input type="text" name="price" class="form-control" id="price" placeholder="Цена" value=" get_field_value('price') ?: 0 ">
++                        <input type="text" name="price" class="form-control" id="price" placeholder="Цена" value="<?= get_field_value('price') ?: 0 ?>">
+                     </div>
+                 </div>
+                 <div class="col-sm-6">
+                     <div class="form-group">
+                         <label for="old_price">Старая цена</label>
+-                        <input type="text" name="old_price" class="form-control" id="old_price" placeholder="Старая цена" value=" get_field_value('old_price') ?: 0 ">
++                        <input type="text" name="old_price" class="form-control" id="old_price" placeholder="Старая цена" value="<?= get_field_value('old_price') ?: 0 ?>">
+                     </div>
+                 </div>
+             </div>
+@@ -93,48 +93,48 @@
+             <div class="card card-info card-outline card-tabs">
+                 <div class="card-header p-0 pt-1 border-bottom-0">
+                     <ul class="nav nav-tabs" id="custom-tabs-three-tab" role="tablist">
+-                         foreach (\wfm\App::$app->getProperty('languages') as $k => $lang): 
++                        <?php foreach (\wfm\App::$app->getProperty('languages') as $k => $lang): ?>
+                             <li class="nav-item">
+-                                <a class="nav-link  if ($lang['base']) echo 'active' " data-toggle="pill" href="# $k ">
+-                                    <img src=" PATH /assets/img/lang/ $k .png" alt="">
++                                <a class="nav-link <?php if ($lang['base']) echo 'active' ?>" data-toggle="pill" href="#<?= $k ?>">
++                                    <img src="<?= PATH ?>/assets/img/lang/<?= $k ?>.png" alt="">
+                                 </a>
+                             </li>
+-                         endforeach; 
++                        <?php endforeach; ?>
+                     </ul>
+                 </div>
+ 
+                 <div class="card-body">
+                     <div class="tab-content">
+-                         foreach (\wfm\App::$app->getProperty('languages') as $k => $lang): 
+-                            <div class="tab-pane fade  if ($lang['base']) echo 'active show' " id=" $k ">
++                        <?php foreach (\wfm\App::$app->getProperty('languages') as $k => $lang): ?>
++                            <div class="tab-pane fade <?php if ($lang['base']) echo 'active show' ?>" id="<?= $k ?>">
+ 
+                                 <div class="form-group">
+                                     <label class="required" for="title">Наименование</label>
+-                                    <input type="text" name="product_description[ $lang['id'] ][title]" class="form-control" id="title" placeholder="Наименование товара" value=" get_field_array_value('product_description', $lang['id'], 'title') ">
++                                    <input type="text" name="product_description[<?= $lang['id'] ?>][title]" class="form-control" id="title" placeholder="Наименование товара" value="<?= get_field_array_value('product_description', $lang['id'], 'title') ?>">
+                                 </div>
+ 
+                                 <div class="form-group">
+                                     <label for="description">Мета-описание</label>
+-                                    <input type="text" name="product_description[ $lang['id'] ][description]" class="form-control" id="description" placeholder="Мета-описание" value=" get_field_array_value('product_description', $lang['id'], 'description') ">
++                                    <input type="text" name="product_description[<?= $lang['id'] ?>][description]" class="form-control" id="description" placeholder="Мета-описание" value="<?= get_field_array_value('product_description', $lang['id'], 'description') ?>">
+                                 </div>
+ 
+                                 <div class="form-group">
+                                     <label for="keywords">Ключевые слова</label>
+-                                    <input type="text" name="product_description[ $lang['id'] ][keywords]" class="form-control" id="keywords" placeholder="Ключевые слова" value=" get_field_array_value('product_description', $lang['id'], 'keywords') ">
++                                    <input type="text" name="product_description[<?= $lang['id'] ?>][keywords]" class="form-control" id="keywords" placeholder="Ключевые слова" value="<?= get_field_array_value('product_description', $lang['id'], 'keywords') ?>">
+                                 </div>
+ 
+                                 <div class="form-group">
+                                     <label for="exerpt" class="required">Краткое описание</label>
+-                                    <input type="text" name="product_description[ $lang['id'] ][exerpt]" class="form-control" id="exerpt" placeholder="Краткое описание" value=" get_field_array_value('product_description', $lang['id'], 'exerpt') ">
++                                    <input type="text" name="product_description[<?= $lang['id'] ?>][exerpt]" class="form-control" id="exerpt" placeholder="Краткое описание" value="<?= get_field_array_value('product_description', $lang['id'], 'exerpt') ?>">
+                                 </div>
+ 
+                                 <div class="form-group">
+                                     <label for="content">Описание товара</label>
+-                                    <textarea name="product_description[ $lang['id'] ][content]" class="form-control editor" id="content" rows="3" placeholder="Описание товара"> get_field_array_value('product_description', $lang['id'], 'content') </textarea>
++                                    <textarea name="product_description[<?= $lang['id'] ?>][content]" class="form-control editor" id="content" rows="3" placeholder="Описание товара"><?= get_field_array_value('product_description', $lang['id'], 'content') ?></textarea>
+                                 </div>
+ 
+                             </div>
+-                         endforeach; 
++                        <?php endforeach; ?>
+                     </div>
+                 </div>
+                 <!-- /.card -->
+@@ -144,17 +144,17 @@
+ 
+         </form>
+ 
+-        
++        <?php
+         if (isset($_SESSION['form_data'])) {
+             unset($_SESSION['form_data']);
+         }
+-        
++        ?>
+ 
+     </div>
+ 
+ </div>
+ <!-- /.card -->
+-<script src=" PATH /adminlte/ckfinder/ckfinder.js"></script>
++<script src="<?= PATH ?>/adminlte/ckfinder/ckfinder.js"></script>
+ <script>
+     function popupBaseImage() {
+         CKFinder.popup({
+@@ -211,7 +211,7 @@
+         ClassicEditor
+             .create(node, {
+                 ckfinder: {
+-                    uploadUrl: ' PATH /adminlte/ckfinder/core/connector/php/connector.php?command=QuickUpload&type=Files&responseType=json'
++                    uploadUrl: '<?= PATH ?>/adminlte/ckfinder/core/connector/php/connector.php?command=QuickUpload&type=Files&responseType=json'
+                 },
+                 toolbar: [
+                     "undo", "redo", "|",
+diff --git a/www/app/views/admin/Product/edit.php b/www/app/views/admin/Product/edit.php
+index 8150a21..f038ed5 100644
+--- a/www/app/views/admin/Product/edit.php
++++ b/www/app/views/admin/Product/edit.php
+@@ -3,12 +3,12 @@
+ 
+     <div class="card-body">
+ 
+-         $key = key($product); 
++        <?php $key = key($product); ?>
+         <form action="" method="post">
+ 
+             <div class="form-group">
+                 <label class="required" for="parent_id">Категория</label>
+-                 new \app\widgets\menu\Menu([
++                <?php new \app\widgets\menu\Menu([
+                     'cache' => 0,
+                     'cacheKey' => 'admin_menu_select',
+                     'class' => 'form-control',
+@@ -19,7 +19,7 @@
+                         'required' => 'required',
+                     ],
+                     'tpl' => APP . '/widgets/menu/admin_select_tpl.php',
+-                ]) 
++                ]) ?>
+             </div>
+ 
+             <div class="row">
+@@ -27,14 +27,14 @@
+                     <div class="form-group">
+                         <label class="required" for="price">Цена</label>
+                         <input type="text" name="price" class="form-control" id="price" placeholder="Цена"
+-                            value=" $product[$key]['price'] ">
++                            value="<?= $product[$key]['price'] ?>">
+                     </div>
+                 </div>
+                 <div class="col-sm-6">
+                     <div class="form-group">
+                         <label for="old_price">Старая цена</label>
+                         <input type="text" name="old_price" class="form-control" id="old_price"
+-                            placeholder="Старая цена" value=" $product[$key]['old_price'] ">
++                            placeholder="Старая цена" value="<?= $product[$key]['old_price'] ?>">
+                     </div>
+                 </div>
+             </div>
+@@ -42,7 +42,7 @@
+             <div class="form-group">
+                 <div class="custom-control custom-checkbox">
+                     <input class="custom-control-input" type="checkbox" id="status"
+-                        name="status"  $product[$key]['status'] ? 'checked' : '' >
++                        name="status" <?= $product[$key]['status'] ? 'checked' : '' ?>>
+                     <label for="status" class="custom-control-label">Показывать на сайте</label>
+                 </div>
+             </div>
+@@ -50,7 +50,7 @@
+             <div class="form-group">
+                 <div class="custom-control custom-checkbox">
+                     <input class="custom-control-input" type="checkbox" id="hit"
+-                        name="hit"  $product[$key]['hit'] ? 'checked' : '' >
++                        name="hit" <?= $product[$key]['hit'] ? 'checked' : '' ?>>
+                     <label for="hit" class="custom-control-label">Хит</label>
+                 </div>
+             </div>
+@@ -60,16 +60,16 @@
+ 
+                     <div class="form-group">
+                         <label for="is_download">Прикрепите загружаемый файл, чтобы товар стал цифровым</label>
+-                         if (isset($product[$key]['download_id'])): 
++                        <?php if (isset($product[$key]['download_id'])): ?>
+                             <p class="clear-download">
+                                 <span class="btn btn-danger">Обычный товар</span>
+                             </p>
+-                         endif; 
++                        <?php endif; ?>
+                         <select name="is_download" class="form-control select2 is-download" id="is_download" style="width: 100%;">
+-                             if (isset($product[$key]['download_id'])): 
+-                                <option value=" $product[$key]['download_id'] "
+-                                    selected> $product[$key]['download_name'] </option>
+-                             endif; 
++                            <?php if (isset($product[$key]['download_id'])): ?>
++                                <option value="<?= $product[$key]['download_id'] ?>"
++                                    selected><?= $product[$key]['download_name'] ?></option>
++                            <?php endif; ?>
+                         </select>
+ 
+                     </div>
+@@ -88,12 +88,12 @@
+                             </button>
+                             <div id="base-img-output" class="upload-images base-image">
+                                 <div class="product-img-upload">
+-                                    <img src=" $product[$key]['img'] ">
+-                                    <input type="hidden" name="img" value=" $product[1]['img'] ">
+-                                     if ($product[$key]['img'] != NO_IMAGE): 
++                                    <img src="<?= $product[$key]['img'] ?>">
++                                    <input type="hidden" name="img" value="<?= $product[1]['img'] ?>">
++                                    <?php if ($product[$key]['img'] != NO_IMAGE): ?>
+                                         <button class="del-img btn btn-app bg-danger"><i class="far fa-trash-alt"></i>
+                                         </button>
+-                                     endif; 
++                                    <?php endif; ?>
+                                 </div>
+                             </div>
+                         </div>
+@@ -114,17 +114,17 @@
+                                 onclick="popupGalleryImage(); return false;">Загрузить
+                             </button>
+                             <div id="gallery-img-output" class="upload-images gallery-image">
+-                                 if (!empty($gallery) && is_array($gallery)): 
+-                                     foreach ($gallery as $item): 
++                                <?php if (!empty($gallery) && is_array($gallery)): ?>
++                                    <?php foreach ($gallery as $item): ?>
+                                         <div class="product-img-upload">
+-                                            <img src=" $item ">
++                                            <img src="<?= $item ?>">
+                                             <input type="hidden" name="gallery[]"
+-                                                value=" $item ">
++                                                value="<?= $item ?>">
+                                             <button class="del-img btn btn-app bg-danger"><i
+                                                     class="far fa-trash-alt"></i></button>
+                                         </div>
+-                                     endforeach; 
+-                                 endif; 
++                                    <?php endforeach; ?>
++                                <?php endif; ?>
+                             </div>
+                         </div>
+                         <!-- /.card-body -->
+@@ -136,59 +136,59 @@
+             <div class="card card-info card-outline card-tabs">
+                 <div class="card-header p-0 pt-1 border-bottom-0">
+                     <ul class="nav nav-tabs" id="custom-tabs-three-tab" role="tablist">
+-                         foreach (\wfm\App::$app->getProperty('languages') as $k => $lang): 
++                        <?php foreach (\wfm\App::$app->getProperty('languages') as $k => $lang): ?>
+                             <li class="nav-item">
+-                                <a class="nav-link  if ($lang['base']) echo 'active' " data-toggle="pill"
+-                                    href="# $k ">
+-                                    <img src=" PATH /assets/img/lang/ $k .png" alt="">
++                                <a class="nav-link <?php if ($lang['base']) echo 'active' ?>" data-toggle="pill"
++                                    href="#<?= $k ?>">
++                                    <img src="<?= PATH ?>/assets/img/lang/<?= $k ?>.png" alt="">
+                                 </a>
+                             </li>
+-                         endforeach; 
++                        <?php endforeach; ?>
+                     </ul>
+                 </div>
+ 
+                 <div class="card-body">
+                     <div class="tab-content">
+-                         foreach (\wfm\App::$app->getProperty('languages') as $k => $lang): 
+-                            <div class="tab-pane fade  if ($lang['base']) echo 'active show' " id=" $k ">
++                        <?php foreach (\wfm\App::$app->getProperty('languages') as $k => $lang): ?>
++                            <div class="tab-pane fade <?php if ($lang['base']) echo 'active show' ?>" id="<?= $k ?>">
+ 
+                                 <div class="form-group">
+                                     <label class="required" for="title">Наименование</label>
+-                                    <input type="text" name="product_description[ $lang['id'] ][title]"
++                                    <input type="text" name="product_description[<?= $lang['id'] ?>][title]"
+                                         class="form-control" id="title" placeholder="Наименование товара"
+-                                        value=" h((string)$product[$lang['id']]['title']) ">
++                                        value="<?= h((string)$product[$lang['id']]['title']) ?>">
+                                 </div>
+ 
+                                 <div class="form-group">
+                                     <label for="description">Мета-описание</label>
+-                                    <input type="text" name="product_description[ $lang['id'] ][description]"
++                                    <input type="text" name="product_description[<?= $lang['id'] ?>][description]"
+                                         class="form-control" id="description" placeholder="Мета-описание"
+-                                        value=" h((string)$product[$lang['id']]['description']) ">
++                                        value="<?= h((string)$product[$lang['id']]['description']) ?>">
+                                 </div>
+ 
+                                 <div class="form-group">
+                                     <label for="keywords">Ключевые слова</label>
+-                                    <input type="text" name="product_description[ $lang['id'] ][keywords]"
++                                    <input type="text" name="product_description[<?= $lang['id'] ?>][keywords]"
+                                         class="form-control" id="keywords" placeholder="Ключевые слова"
+-                                        value=" h((string)$product[$lang['id']]['keywords']) ">
++                                        value="<?= h((string)$product[$lang['id']]['keywords']) ?>">
+                                 </div>
+ 
+                                 <div class="form-group">
+                                     <label for="exerpt" class="required">Краткое описание</label>
+-                                    <input type="text" name="product_description[ $lang['id'] ][exerpt]"
++                                    <input type="text" name="product_description[<?= $lang['id'] ?>][exerpt]"
+                                         class="form-control" id="exerpt" placeholder="Краткое описание"
+-                                        value=" h((string)$product[$lang['id']]['exerpt']) ">
++                                        value="<?= h((string)$product[$lang['id']]['exerpt']) ?>">
+                                 </div>
+ 
+                                 <div class="form-group">
+                                     <label for="content">Описание товара</label>
+-                                    <textarea name="product_description[ $lang['id'] ][content]"
++                                    <textarea name="product_description[<?= $lang['id'] ?>][content]"
+                                         class="form-control editor" id="content" rows="3"
+-                                        placeholder="Описание товара"> h((string)$product[$lang['id']]['content']) </textarea>
++                                        placeholder="Описание товара"><?= h((string)$product[$lang['id']]['content']) ?></textarea>
+                                 </div>
+ 
+                             </div>
+-                         endforeach; 
++                        <?php endforeach; ?>
+                     </div>
+                 </div>
+                 <!-- /.card -->
+@@ -202,7 +202,7 @@
+ 
+ </div>
+ <!-- /.card -->
+-<script src=" PATH /adminlte/ckfinder/ckfinder.js"></script>
++<script src="<?= PATH ?>/adminlte/ckfinder/ckfinder.js"></script>
+ <script>
+     function popupBaseImage() {
+         CKFinder.popup({
+@@ -259,7 +259,7 @@
+         ClassicEditor
+             .create(node, {
+                 ckfinder: {
+-                    uploadUrl: ' PATH /adminlte/ckfinder/core/connector/php/connector.php?command=QuickUpload&type=Files&responseType=json'
++                    uploadUrl: '<?= PATH ?>/adminlte/ckfinder/core/connector/php/connector.php?command=QuickUpload&type=Files&responseType=json'
+                 },
+                 toolbar: [
+                     "undo", "redo", "|",
+diff --git a/www/app/views/admin/Product/index.php b/www/app/views/admin/Product/index.php
+index c0b8e10..fe31bc2 100644
+--- a/www/app/views/admin/Product/index.php
++++ b/www/app/views/admin/Product/index.php
+@@ -1,4 +1,4 @@
+-
++<?php
+ 
+ /**
+  * @var string $title
+@@ -6,17 +6,17 @@
+  * @var \wfm\Pagination $pagination
+  * @var int $total
+  */
+-
++?>
+ <!-- Default box -->
+ <div class="card">
+ 
+     <div class="card-header">
+-        <a href=" ADMIN /product/add" class="btn btn-default btn-flat"><i class="fas fa-plus"></i> Добавить товар</a>
++        <a href="<?= ADMIN ?>/product/add" class="btn btn-default btn-flat"><i class="fas fa-plus"></i> Добавить товар</a>
+     </div>
+ 
+     <div class="card-body">
+ 
+-         if (!empty($products)): 
++        <?php if (!empty($products)): ?>
+             <div class="table-responsive">
+                 <table class="table table-bordered">
+                     <thead>
+@@ -32,53 +32,53 @@
+                         </tr>
+                     </thead>
+                     <tbody>
+-                         foreach ($products as $product): 
++                        <?php foreach ($products as $product): ?>
+                             <tr>
+-                                <td> $product['id'] </td>
++                                <td><?= $product['id'] ?></td>
+                                 <td>
+-                                    <img src=" PATH / $product['img'] " alt="" height="40">
++                                    <img src="<?= PATH ?>/<?= $product['img'] ?>" alt="" height="40">
+                                 </td>
+                                 <td>
+-                                     $product['title'] 
++                                    <?= $product['title'] ?>
+                                 </td>
+                                 <td>
+-                                    $ $product['price'] 
++                                    $<?= $product['price'] ?>
+                                 </td>
+                                 <td>
+-                                     $product['status'] ? '<i class="far fa-eye"></i>' : '<i class="far fa-eye-slash"></i>' 
++                                    <?= $product['status'] ? '<i class="far fa-eye"></i>' : '<i class="far fa-eye-slash"></i>' ?>
+                                 </td>
+                                 <td>
+-                                     $product['is_download'] ? 'Цифровой товар' : 'Обычный товар'; 
++                                    <?= $product['is_download'] ? 'Цифровой товар' : 'Обычный товар'; ?>
+                                 </td>
+                                 <td width="50">
+                                     <a class="btn btn-info btn-sm"
+-                                        href=" ADMIN /product/edit?id= $product['id'] "><i
++                                        href="<?= ADMIN ?>/product/edit?id=<?= $product['id'] ?>"><i
+                                             class="fas fa-pencil-alt"></i></a>
+                                 </td>
+                                 <td width="50">
+                                     <a class="btn btn-danger btn-sm delete"
+-                                        href=" ADMIN /product/delete?id= $product['id'] ">
++                                        href="<?= ADMIN ?>/product/delete?id=<?= $product['id'] ?>">
+                                         <i class="far fa-trash-alt"></i>
+                                     </a>
+                                 </td>
+                             </tr>
+-                         endforeach; 
++                        <?php endforeach; ?>
+                     </tbody>
+                 </table>
+             </div>
+ 
+             <div class="row">
+                 <div class="col-md-12">
+-                    <p> count($products)  товар(ов) из:  $total; </p>
+-                     if ($pagination->countPages > 1): 
+-                         $pagination; 
+-                     endif; 
++                    <p><?= count($products) ?> товар(ов) из: <?= $total; ?></p>
++                    <?php if ($pagination->countPages > 1): ?>
++                        <?= $pagination; ?>
++                    <?php endif; ?>
+                 </div>
+             </div>
+ 
+-         else: 
++        <?php else: ?>
+             <p>Товаров не найдено...</p>
+-         endif; 
++        <?php endif; ?>
+ 
+     </div>
+ </div>
+diff --git a/www/app/views/admin/parts/footer.php b/www/app/views/admin/parts/footer.php
+index d33f40d..5328866 100644
+--- a/www/app/views/admin/parts/footer.php
++++ b/www/app/views/admin/parts/footer.php
+@@ -37,7 +37,7 @@
+ <!-- AdminLTE for demo purposes -->
+ <script src="<?= PATH ?>/adminlte/dist/js/demo.js"></script>
+ <script src="<?= PATH ?>/adminlte/main.js"></script>
+-<script src=" PATH /adminlte/plugins/select2/js/select2.full.min.js"></script>
++<script src="<?= PATH ?>/adminlte/plugins/select2/js/select2.full.min.js"></script>
+ </body>
+ 
+ </html>
+\ No newline at end of file
+diff --git a/www/app/views/admin/parts/header.php b/www/app/views/admin/parts/header.php
+index 678ece5..305d518 100644
+--- a/www/app/views/admin/parts/header.php
++++ b/www/app/views/admin/parts/header.php
+@@ -21,7 +21,7 @@
+     <!-- Theme style -->
+     <link rel="stylesheet" href="<?= PATH ?>/adminlte/dist/css/adminlte.min.css">
+     <link rel="stylesheet" href="<?= PATH ?>/adminlte/main.css">
+-    <link rel="stylesheet" href=" PATH /adminlte/plugins/select2/css/select2.min.css">
++    <link rel="stylesheet" href="<?= PATH ?>/adminlte/plugins/select2/css/select2.min.css">
+ </head>
+ 
+ <body class="hold-transition sidebar-mini">
+diff --git a/www/app/views/admin/parts/sidebar.php b/www/app/views/admin/parts/sidebar.php
+index 970edda..c18e4c0 100644
+--- a/www/app/views/admin/parts/sidebar.php
++++ b/www/app/views/admin/parts/sidebar.php
+@@ -54,7 +54,7 @@
+                             </a>
+                         </li>
+                         <li class="nav-item">
+-                            <a href=" ADMIN /product" class="nav-link">
++                            <a href="<?= ADMIN ?>/product" class="nav-link">
+                                 <i class="nav-icon fas fa-barcode"></i>
+                                 <p>Товары</p>
+                             </a>
+diff --git a/www/public/adminlte/main.js b/www/public/adminlte/main.js
+index d6c465b..1b3bb62 100644
+--- a/www/public/adminlte/main.js
++++ b/www/public/adminlte/main.js
+@@ -4,4 +4,43 @@ $(function () {
+         if (!res)
+             return false
+     })
++
++    $(".is-download").select2({
++        placeholder: "Начните вводить наименование файла",
++        minimumInputLength: 1,
++        cache: true,
++        ajax: {
++            url: ADMIN + "/product/get-download",
++            delay: 500,
++            dataType: 'json',
++            data: function (params) {
++                return {
++                    q: params.term,
++                    page: params.page,
++                }
++            },
++            processResults: function (data, params) {
++                return {
++                    results: data.items,
++                }
++            },
++        },
++    })
++    $('#is_download').on('select2:open', function () {
++        document.querySelector('.select2-search__field').focus();
++    })
++
++    $('#is_download').on('select2:select', function () {
++        $('.clear-download').remove();
++        $('#is_download').before('<p class="clear-download"><span class="btn btn-danger">Обычный товар</span></p>')
++    })
++    $('body').on('click', '.clear-download span', function () {
++        $('#is_download').val(null).trigger('change');
++        $('.clear-download').remove();
++    })
++    $('.card-body').on('click', '.del-img', function () {
++        const parentDiv = $(this).closest('.product-img-upload').remove();
++        return false;
++    })
++
+ })
+\ No newline at end of file

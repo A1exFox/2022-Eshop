@@ -21,10 +21,7 @@
     <!-- Theme style -->
     <link rel="stylesheet" href="<?= PATH ?>/adminlte/dist/css/adminlte.min.css">
     <link rel="stylesheet" href="<?= PATH ?>/adminlte/main.css">
-
-    <?php if (is_file(WWW . '/adminlte/ckeditor/ckeditor5.css')): ?>
-        <link rel="stylesheet" href="<?= PATH ?>/adminlte/ckeditor/ckeditor5.css">
-    <?php endif; ?>
+    <link rel="stylesheet" href=" PATH /adminlte/plugins/select2/css/select2.min.css">
 </head>
 
 <body class="hold-transition sidebar-mini">

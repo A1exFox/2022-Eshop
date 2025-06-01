@@ -15,7 +15,16 @@ RUN set -eux && \
         git \
         zip \
         linux-headers \
-        libpng-dev && \
+        libpng \
+        libjpeg-turbo \
+        libwebp \
+        freetype && \
+    \
+    apk add --no-cache --virtual .build-deps \
+        libpng-dev \
+        libjpeg-turbo-dev \
+        libwebp-dev \
+        freetype-dev && \
     \
     pecl channel-update \
         pecl.php.net && \
@@ -23,7 +32,12 @@ RUN set -eux && \
     pecl install -f \
         xdebug${XDEBUG_VER} && \
     \
-    docker-php-ext-install \
+    docker-php-ext-configure gd \
+		--with-jpeg \
+		--with-webp \
+		--with-freetype && \
+    \
+    docker-php-ext-install -j$(nproc) \
         pdo \
         pdo_mysql \
         mysqli \
@@ -37,6 +51,8 @@ RUN set -eux && \
         g++ \
         make && \
     \
+    apk del .build-deps && \
+    rm -rf /var/cache/apk/* && \
     mkdir /.composer && \
     chown -R ${USER_ID}:${USER_ID} /.composer
 
