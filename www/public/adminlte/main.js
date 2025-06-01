@@ -43,4 +43,6 @@ $(function () {
         return false;
     })
 
+    bsCustomFileInput.init();
+
 })

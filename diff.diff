@@ -1,0 +1,293 @@
+diff --git a/www/app/controllers/admin/DownloadController.php b/www/app/controllers/admin/DownloadController.php
+new file mode 100644
+index 0000000..5938b1c
+--- /dev/null
++++ b/www/app/controllers/admin/DownloadController.php
+@@ -0,0 +1,70 @@
++<?php
++
++declare(strict_types=1);
++
++namespace app\controllers\admin;
++
++use wfm\App;
++use RedBeanPHP\R;
++use wfm\Pagination;
++
++/**
++ * @property \app\models\admin\Download $model
++ */
++
++class DownloadController extends AppController
++{
++    public function indexAction()
++    {
++        $lang = App::$app->getProperty('language');
++        $page = get('page');
++        $perpage = 20;
++        $total = R::count('download');
++        $pagination = new Pagination($page, $perpage, $total);
++        $start = $pagination->getStart();
++        $downloads = $this->model->get_downloads($lang, $start, $perpage);
++        $title = "Файлы(цифровые товары)";
++        $this->setMeta("Админка::$title");
++        $this->set(compact('title', 'downloads', 'pagination', 'total'));
++    }
++
++    public function addAction()
++    {
++        if (!empty($_POST)) {
++            if ($this->model->download_validate()) {
++                if ($data = $this->model->upload_file()) {
++                    if ($this->model->save_download($data)) {
++                        $_SESSION['success'] = "Файл добавлен";
++                    } else {
++                        $_SESSION['errors'] = "Ошибка добавления файла";
++                    }
++                } else {
++                    $_SESSION['errors'] = "Ошибка перемещения файла";
++                }
++            }
++            redirect();
++        }
++        $title = "Добавление файла(цифровые товары)";
++        $this->setMeta("Админка::$title");
++        $this->set(compact('title'));
++    }
++
++    public function deleteAction()
++    {
++        $id = get('id');
++        if (R::count('order_download', 'download_id = ?', [$id])) {
++            $_SESSION['errors'] = "Нельзя удалить приобретенный файл";
++            redirect();
++        }
++        // if (R::count('product_download', 'download_id = ?', [$id])) {
++        //     $_SESSION['errors'] = "Нельзя удалить прикрепленный к товару файл";
++        //     redirect();
++        // }
++        if ($this->model->download_delete($id)) {
++            $_SESSION['success'] = 'Файл удален';
++        } else {
++            $_SESSION['errors'] = 'Ошибка удаления файла';
++        }
++        redirect();
++    }
++}
+diff --git a/www/app/models/admin/Download.php b/www/app/models/admin/Download.php
+new file mode 100644
+index 0000000..f84668a
+--- /dev/null
++++ b/www/app/models/admin/Download.php
+@@ -0,0 +1,115 @@
++<?php
++
++declare(strict_types=1);
++
++namespace app\models\admin;
++
++use RedBeanPHP\R;
++use app\models\AppModel;
++
++class Download extends AppModel
++{
++    public function get_downloads(array $lang, int $start, $perpage): array
++    {
++        return R::getAll("SELECT d.*,dd.* 
++            FROM download d
++            JOIN download_description dd
++                ON d.id = dd.download_id
++            WHERE dd.language_id = ?
++                LIMIT $start,$perpage", [$lang['id']]);
++    }
++
++    public function download_validate(): bool
++    {
++        $errors = '';
++        foreach ($_POST['download_description'] as $lang_id => $item) {
++            $item['name'] = trim($item['name']);
++            if (empty($item['name'])) {
++                $errors .= "Не заполнено наименование $lang_id<br>";
++            }
++        }
++        if (empty($_FILES) || $_FILES['file']['error']) {
++            $errors .= "Ошибка загрузки файла<br>";
++        } else {
++            $extensions = ['jpg', 'jpeg', 'png', 'zip', 'pdf', 'txt'];
++            $parts = explode('.', $_FILES['file']['name']);
++            $ext = end($parts);
++            if (!in_array($ext, $extensions)) {
++                $errors .= "Допустимые для загрузки расширения jpg, jpeg, png, zip, pdf, txt<br>";
++            }
++        }
++
++        if ($errors) {
++            $_SESSION['errors'] = $errors;
++            return false;
++        }
++        return true;
++    }
++
++    public function upload_file(): array|false
++    {
++        $file_name = $_FILES['file']['name'] . uniqid();
++        $path = WWW . '/downloads/' . $file_name;
++        if (move_uploaded_file($_FILES['file']['tmp_name'], $path)) {
++            return [
++                'original_name' => $_FILES['file']['name'],
++                'filename' => $file_name,
++            ];
++        }
++        return false;
++    }
++
++    public function save_download($data): bool
++    {
++        R::begin();
++        try {
++            $download = R::dispense('download');
++            $download->filename = $data['filename'];
++            $download->original_name = $data['original_name'];
++            $download_id = R::store($download);
++
++            foreach ($_POST['download_description'] as $lang_id => $item) {
++                R::exec("INSERT INTO download_description (download_id, language_id, name)
++                    VALUES (?,?,?)", [$download_id, $lang_id, $item['name']]);
++            }
++
++            R::commit();
++            return true;
++        } catch (\Exception $e) {
++            R::rollback();
++            return false;
++        }
++    }
++
++    public function download_delete($id): bool
++    {
++        //FIXME: Неправильный порядок (удаление из таблиц, удаление файла)
++        $file_name = R::getCell("SELECT filename
++            FROM download
++            WHERE id = ?", [$id]);
++        $file_path = WWW . "/downloads/$file_name";
++        if (file_exists($file_path)) {
++            R::begin();
++            try {
++                R::exec("DELETE FROM download_description WHERE download_id = ?", [$id]);
++                R::exec("DELETE FROM download WHERE id = ?", [$id]);
++                //FIXME: Можно обойтись одним запросом
++                $products = R::getCol("SELECT product_id FROM product_download WHERE download_id = ?", [$id]);
++                if (!empty($products)) {
++                    $str = str_repeat('?,', count($products));
++                    $str = rtrim($str, ',');
++                    R::exec("UPDATE product SET is_download = 0 WHERE id IN ($str)", $products);
++                }
++                R::exec("DELETE FROM product_download WHERE download_id = ?", [$id]);
++
++                R::commit();
++                unlink($file_path);
++                return true;
++            } catch (\Exception $e) {
++                R::rollback();
++                return false;
++            }
++        }
++        return false;
++    }
++}
+diff --git a/www/app/views/admin/Download/add.php b/www/app/views/admin/Download/add.php
+index 8f3a86b..720477f 100644
+--- a/www/app/views/admin/Download/add.php
++++ b/www/app/views/admin/Download/add.php
+@@ -5,20 +5,20 @@
+ 
+         <form action="" class="form-horizontal" method="post" enctype="multipart/form-data">
+ 
+-             foreach (\wfm\App::$app->getProperty('languages') as $k => $lang): 
++            <?php foreach (\wfm\App::$app->getProperty('languages') as $k => $lang): ?>
+ 
+                 <div class="form-group row">
+                     <label for="name" class="col-sm-3 col-form-label required">
+-                        <img src=" PATH /assets/img/lang/ $k .png" alt="">
++                        <img src="<?= PATH ?>/assets/img/lang/<?= $k ?>.png" alt="">
+                         Наименование
+                     </label>
+                     <div class="col-sm-9">
+-                        <input type="text" name="download_description[ $lang['id'] ][name]" class="form-control" id="name" placeholder="Наименование файла">
++                        <input type="text" name="download_description[<?= $lang['id'] ?>][name]" class="form-control" id="name" placeholder="Наименование файла">
+                     </div>
+ 
+                 </div>
+ 
+-             endforeach; 
++            <?php endforeach; ?>
+ 
+             <hr>
+ 
+diff --git a/www/app/views/admin/Download/index.php b/www/app/views/admin/Download/index.php
+index 6140c48..b2cfb03 100644
+--- a/www/app/views/admin/Download/index.php
++++ b/www/app/views/admin/Download/index.php
+@@ -2,12 +2,12 @@
+ <div class="card">
+ 
+     <div class="card-header">
+-        <a href=" ADMIN /download/add" class="btn btn-default btn-flat"><i class="fas fa-plus"></i> Загрузить файл</a>
++        <a href="<?= ADMIN ?>/download/add" class="btn btn-default btn-flat"><i class="fas fa-plus"></i> Загрузить файл</a>
+     </div>
+ 
+     <div class="card-body">
+ 
+-         if (!empty($downloads)): 
++        <?php if (!empty($downloads)): ?>
+             <table class="table table-bordered">
+                 <thead>
+                     <tr>
+@@ -17,36 +17,36 @@
+                     </tr>
+                 </thead>
+                 <tbody>
+-                     foreach ($downloads as $download): 
++                    <?php foreach ($downloads as $download): ?>
+                         <tr>
+                             <td>
+-                                 $download['name'] 
++                                <?= $download['name'] ?>
+                             </td>
+                             <td>
+-                                 $download['original_name'] 
++                                <?= $download['original_name'] ?>
+                             </td>
+                             <td width="50">
+-                                <a class="btn btn-danger btn-sm delete" href=" ADMIN /download/delete?id= $download['id'] ">
++                                <a class="btn btn-danger btn-sm delete" href="<?= ADMIN ?>/download/delete?id=<?= $download['id'] ?>">
+                                     <i class="far fa-trash-alt"></i>
+                                 </a>
+                             </td>
+                         </tr>
+-                     endforeach; 
++                    <?php endforeach; ?>
+                 </tbody>
+             </table>
+ 
+             <div class="row">
+                 <div class="col-md-12">
+-                    <p> count($downloads)  файл(ов) из:  $total; </p>
+-                     if ($pagination->countPages > 1): 
+-                         $pagination; 
+-                     endif; 
++                    <p><?= count($downloads) ?> файл(ов) из: <?= $total; ?></p>
++                    <?php if ($pagination->countPages > 1): ?>
++                        <?= $pagination; ?>
++                    <?php endif; ?>
+                 </div>
+             </div>
+ 
+-         else: 
++        <?php else: ?>
+             <p>Файлов для загрузки не найдено...</p>
+-         endif; 
++        <?php endif; ?>
+ 
+     </div>
+ </div>
