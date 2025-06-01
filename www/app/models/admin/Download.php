@@ -80,4 +80,36 @@ class Download extends AppModel
             return false;
         }
     }
+
+    public function download_delete($id): bool
+    {
+        //FIXME: Неправильный порядок (удаление из таблиц, удаление файла)
+        $file_name = R::getCell("SELECT filename
+            FROM download
+            WHERE id = ?", [$id]);
+        $file_path = WWW . "/downloads/$file_name";
+        if (file_exists($file_path)) {
+            R::begin();
+            try {
+                R::exec("DELETE FROM download_description WHERE download_id = ?", [$id]);
+                R::exec("DELETE FROM download WHERE id = ?", [$id]);
+                //FIXME: Можно обойтись одним запросом
+                $products = R::getCol("SELECT product_id FROM product_download WHERE download_id = ?", [$id]);
+                if (!empty($products)) {
+                    $str = str_repeat('?,', count($products));
+                    $str = rtrim($str, ',');
+                    R::exec("UPDATE product SET is_download = 0 WHERE id IN ($str)", $products);
+                }
+                R::exec("DELETE FROM product_download WHERE download_id = ?", [$id]);
+
+                R::commit();
+                unlink($file_path);
+                return true;
+            } catch (\Exception $e) {
+                R::rollback();
+                return false;
+            }
+        }
+        return false;
+    }
 }

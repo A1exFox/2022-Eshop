@@ -2,32 +2,33 @@
 
 ### Training sets:
 
-#### Chapter #3: Developing the admin panel for an e-commerce CMS
+#### Chapter #1: Creating a framework from scratch
 
-* [3.04.Managе.Categories](../../archive/refs/heads/3.04.Managе.Categories.zip) > **Update stack required** [Learn more...](../../tree/3.04.Managе.Categories)
-* [3.03.Dashboard](../../archive/refs/heads/3.03.Dashboard.zip)
-* [3.02.Admin.access.control](../../archive/refs/heads/3.02.Admin.access.control.zip)
+* [1.04.ErrorHandler](../../archive/refs/heads/1.04.ErrorHandler.zip)
+* [1.05.Router](../../archive/refs/heads/1.05.Router.zip)
+* [1.09.Controller.View](../../archive/refs/heads/1.09.Controller.View.zip)
+* [1.12.Model](../../archive/refs/heads/1.12.Model.zip)
 
 #### Chapter #2: Developing the frontend for an e-commerce CMS
 
-* [2.39.Cabinet](../../archive/refs/heads/2.39.Cabinet.zip)
-* [2.35.Checkout](../../archive/refs/heads/2.35.Checkout.zip)
-* [2.31.Signup.Signin](../../archive/refs/heads/2.31.Signup.Signin.zip)
-* [2.29.Additional.pages](../../archive/refs/heads/2.29.Additional.pages.zip)
-* [2.26.Wishlist](../../archive/refs/heads/2.26.Wishlist.zip)
-* [2.25.Search](../../archive/refs/heads/2.25.Search.zip)
-* [2.21.Categories](../../archive/refs/heads/2.21.Categories.zip)
-* [2.19.Breadcrumbs](../../archive/refs/heads/2.19.Breadcrumbs.zip)
-* [2.12.Cart](../../archive/refs/heads/2.12.Cart.zip)
-* [2.11.Cache.Menu](../../archive/refs/heads/2.11.Cache.Menu.zip)
 * [2.04.Multilanguage](../../archive/refs/heads/2.04.Multilanguage.zip)
+* [2.11.Cache.Menu](../../archive/refs/heads/2.11.Cache.Menu.zip)
+* [2.12.Cart](../../archive/refs/heads/2.12.Cart.zip)
+* [2.19.Breadcrumbs](../../archive/refs/heads/2.19.Breadcrumbs.zip)
+* [2.21.Categories](../../archive/refs/heads/2.21.Categories.zip)
+* [2.25.Search](../../archive/refs/heads/2.25.Search.zip)
+* [2.26.Wishlist](../../archive/refs/heads/2.26.Wishlist.zip)
+* [2.29.Additional.pages](../../archive/refs/heads/2.29.Additional.pages.zip)
+* [2.31.Signup.Signin](../../archive/refs/heads/2.31.Signup.Signin.zip)
+* [2.35.Checkout](../../archive/refs/heads/2.35.Checkout.zip)
+* [2.39.Cabinet](../../archive/refs/heads/2.39.Cabinet.zip)
 
-#### Chapter #1: Creating a framework from scratch
+#### Chapter #3: Developing the admin panel for an e-commerce CMS
 
-* [1.12.Model](../../archive/refs/heads/1.12.Model.zip)
-* [1.09.Controller.View](../../archive/refs/heads/1.09.Controller.View.zip)
-* [1.05.Router](../../archive/refs/heads/1.05.Router.zip)
-* [1.04.ErrorHandler](../../archive/refs/heads/1.04.ErrorHandler.zip)
+* [3.02.Admin.access.control](../../archive/refs/heads/3.02.Admin.access.control.zip)
+* [3.03.Dashboard](../../archive/refs/heads/3.03.Dashboard.zip)
+* [3.04.Managе.Categories](../../archive/refs/heads/3.04.Managе.Categories.zip) > **Update stack required** [Learn more...](../../tree/3.04.Managе.Categories)
+* [3.11.Manage.Products](../../archive/refs/heads/3.11.Manage.Products.zip)
 
 ***
 ### Download the Training Set
