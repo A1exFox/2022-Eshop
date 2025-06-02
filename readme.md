@@ -29,6 +29,7 @@
 * [3.03.Dashboard](../../archive/refs/heads/3.03.Dashboard.zip)
 * [3.04.Managе.Categories](../../archive/refs/heads/3.04.Managе.Categories.zip) > **Update stack required** [Learn more...](../../tree/3.04.Managе.Categories)
 * [3.11.Manage.Products](../../archive/refs/heads/3.11.Manage.Products.zip)
+* [3.17.Manage.Downloads](../../archive/refs/heads/3.17.Manage.Downloads.zip)
 
 ***
 ### Download the Training Set
