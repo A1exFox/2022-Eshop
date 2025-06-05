@@ -1,0 +1,254 @@
+diff --git a/www/app/controllers/admin/OrderController.php b/www/app/controllers/admin/OrderController.php
+new file mode 100644
+index 0000000..0dda04b
+--- /dev/null
++++ b/www/app/controllers/admin/OrderController.php
+@@ -0,0 +1,48 @@
++<?php
++
++declare(strict_types=1);
++
++namespace app\controllers\admin;
++
++use Exception;
++use RedBeanPHP\R;
++use wfm\Pagination;
++
++/** @property \app\models\admin\Order $model */
++class OrderController extends AppController
++{
++    public function indexAction()
++    {
++        $status = get('status', 's');
++        $status = ($status == 'new') ? 'status = 0 ' : '';
++        $page = get('page');
++        $perpage = 10;
++        $total = R::count('orders', $status);
++        $pagination = new Pagination($page, $perpage, $total);
++        $start = $pagination->getStart();
++        $orders = $this->model->get_orders($start, $perpage, $status);
++        $title = "Список заказов";
++        $this->setMeta("Админка::$title");
++        $this->set(compact('title', 'orders', 'pagination', 'total'));
++    }
++
++    public function editAction()
++    {
++        $id = get('id');
++        if (isset($_GET['status'])) {
++            $status = get('status');
++            if ($this->model->change_status($id, $status)) {
++                $_SESSION['success'] = 'Статус заказа изменен';
++            } else {
++                $_SESSION['errors'] = 'Ошибка изменения статуса заказа';
++            }
++        }
++        $order = $this->model->get_order($id);
++        if (!$order) {
++            throw new Exception("Not found order", 404);
++        }
++        $title = "Заказ N$id";
++        $this->setMeta("Админка::$title");
++        $this->set(compact('title', 'order'));
++    }
++}
+diff --git a/www/app/models/admin/Order.php b/www/app/models/admin/Order.php
+new file mode 100644
+index 0000000..46eca87
+--- /dev/null
++++ b/www/app/models/admin/Order.php
+@@ -0,0 +1,51 @@
++<?php
++
++declare(strict_types=1);
++
++namespace app\models\admin;
++
++use RedBeanPHP\R;
++use app\models\AppModel;
++use Exception;
++
++class Order extends AppModel
++{
++    public function get_orders($start, $perpage, $status): array
++    {
++        if ($status) {
++            return R::getAll("SELECT *
++                FROM orders
++                WHERE $status
++                ORDER BY id DESC
++                LIMIT $start, $perpage");
++        }
++        return R::getAll("SELECT *
++            FROM orders
++            ORDER BY id DESC
++            LIMIT $start, $perpage");
++    }
++
++    public function get_order($id): array
++    {
++        return R::getAll("SELECT o.*, op.*
++            FROM orders o
++            JOIN order_product op
++                ON o.id = op.order_id
++            WHERE o.id = ?", [$id]);
++    }
++
++    public function change_status($id, $status): bool
++    {
++        $status = ($status == 1) ? 1 : 0;
++        R::begin();
++        try {
++            R::exec("UPDATE orders SET status = ? WHERE id = ?", [$status, $id]);
++            R::exec("UPDATE order_download SET status = ? WHERE order_id = ?", [$status, $id]);
++            R::commit();
++            return true;
++        } catch (Exception $e) {
++            R::rollback();
++            return false;
++        }
++    }
++}
+diff --git a/www/app/views/admin/Order/edit.php b/www/app/views/admin/Order/edit.php
+index fe8fcb3..8015d77 100644
+--- a/www/app/views/admin/Order/edit.php
++++ b/www/app/views/admin/Order/edit.php
+@@ -13,14 +13,14 @@
+                 </tr>
+                 </thead>
+                 <tbody>
+-                 foreach ($order as $item): 
++                <?php foreach ($order as $item): ?>
+                     <tr>
+-                        <td><a href="product/ $item['slug'] "> $item['title'] </a></td>
+-                        <td>$ $item['price'] </td>
+-                        <td> $item['qty'] </td>
+-                        <td>$ $item['sum'] </td>
++                        <td><a href="product/<?= $item['slug'] ?>"><?= $item['title'] ?></a></td>
++                        <td>$<?= $item['price'] ?></td>
++                        <td><?= $item['qty'] ?></td>
++                        <td>$<?= $item['sum'] ?></td>
+                     </tr>
+-                 endforeach; 
++                <?php endforeach; ?>
+                 </tbody>
+             </table>
+         </div>
+@@ -32,27 +32,27 @@
+                     <table class="table text-start table-striped">
+                         <tr>
+                             <td>Номера заказа</td>
+-                            <td> $order[0]['order_id'] </td>
++                            <td><?= $order[0]['order_id'] ?></td>
+                         </tr>
+                         <tr>
+                             <td>Статус</td>
+-                            <td> $order[0]['status'] ? 'Завершен' : 'Новый' </td>
++                            <td><?= $order[0]['status'] ? 'Завершен' : 'Новый' ?></td>
+                         </tr>
+                         <tr>
+                             <td>Создан</td>
+-                            <td> $order[0]['created_at'] </td>
++                            <td><?= $order[0]['created_at'] ?></td>
+                         </tr>
+                         <tr>
+                             <td>Обновлен</td>
+-                            <td> $order[0]['updated_at'] </td>
++                            <td><?= $order[0]['updated_at'] ?></td>
+                         </tr>
+                         <tr>
+                             <td>Итоговая сумма</td>
+-                            <td>$ $order[0]['total'] </td>
++                            <td>$<?= $order[0]['total'] ?></td>
+                         </tr>
+                         <tr>
+                             <td>Примечание</td>
+-                            <td> $order[0]['note'] </td>
++                            <td><?= $order[0]['note'] ?></td>
+                         </tr>
+                     </table>
+                 </div>
+@@ -60,11 +60,11 @@
+ 
+         </div>
+ 
+-         if (!$order[0]['status']): 
+-            <a href=" ADMIN /order/edit?id= $order[0]['order_id'] &status=1" class="btn btn-success btn-flat">Изменить статус на Завершен</a>
+-         else: 
+-            <a href=" ADMIN /order/edit?id= $order[0]['order_id'] &status=0" class="btn btn-danger btn-flat">Изменить статус на Новый</a>
+-         endif; 
++        <?php if (!$order[0]['status']): ?>
++            <a href="<?= ADMIN ?>/order/edit?id=<?= $order[0]['order_id'] ?>&status=1" class="btn btn-success btn-flat">Изменить статус на Завершен</a>
++        <?php else: ?>
++            <a href="<?= ADMIN ?>/order/edit?id=<?= $order[0]['order_id'] ?>&status=0" class="btn btn-danger btn-flat">Изменить статус на Новый</a>
++        <?php endif; ?>
+ 
+     </div>
+ </div>
+diff --git a/www/app/views/admin/Order/index.php b/www/app/views/admin/Order/index.php
+index e5e4303..97cc50b 100644
+--- a/www/app/views/admin/Order/index.php
++++ b/www/app/views/admin/Order/index.php
+@@ -2,7 +2,7 @@
+ <div class="card">
+ 
+     <div class="card-body">
+-         if (!empty($orders)): 
++        <?php if (!empty($orders)): ?>
+             <div class="table-responsive">
+                 <table class="table table-bordered">
+                     <thead>
+@@ -16,38 +16,38 @@
+                     </tr>
+                     </thead>
+                     <tbody>
+-                     foreach ($orders as $order): 
+-                        <tr  if ($order['status']) echo 'class="table-info"' >
+-                            <td> $order['id'] </td>
++                    <?php foreach ($orders as $order): ?>
++                        <tr <?php if ($order['status']) echo 'class="table-info"' ?>>
++                            <td><?= $order['id'] ?></td>
+                             <td>
+-                                 $order['status'] ? 'Завершен' : 'Новый' 
++                                <?= $order['status'] ? 'Завершен' : 'Новый' ?>
+                             </td>
+-                            <td> $order['created_at'] </td>
+-                            <td> $order['updated_at'] </td>
+-                            <td>$ $order['total'] </td>
++                            <td><?= $order['created_at'] ?></td>
++                            <td><?= $order['updated_at'] ?></td>
++                            <td>$<?= $order['total'] ?></td>
+                             <td width="50">
+-                                <a class="btn btn-info btn-sm" href=" ADMIN /order/edit?id= $order['id'] ">
++                                <a class="btn btn-info btn-sm" href="<?= ADMIN ?>/order/edit?id=<?= $order['id'] ?>">
+                                     <i class="fas fa-pencil-alt"></i>
+                                 </a>
+                             </td>
+                         </tr>
+-                     endforeach; 
++                    <?php endforeach; ?>
+                     </tbody>
+                 </table>
+             </div>
+ 
+             <div class="row">
+                 <div class="col-md-12">
+-                    <p> count($orders)  заказ(ов) из:  $total; </p>
+-                     if ($pagination->countPages > 1): 
+-                         $pagination; 
+-                     endif; 
++                    <p><?= count($orders) ?> заказ(ов) из: <?= $total; ?></p>
++                    <?php if ($pagination->countPages > 1): ?>
++                        <?= $pagination; ?>
++                    <?php endif; ?>
+                 </div>
+             </div>
+ 
+-         else: 
++        <?php else: ?>
+             <p>Заказов не найдено...</p>
+-         endif; 
++        <?php endif; ?>
+ 
+     </div>
+ </div>
