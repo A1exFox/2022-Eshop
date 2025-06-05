@@ -1,0 +1,439 @@
+diff --git a/www/app/controllers/admin/UserController.php b/www/app/controllers/admin/UserController.php
+index 99cced6..7c00c0f 100644
+--- a/www/app/controllers/admin/UserController.php
++++ b/www/app/controllers/admin/UserController.php
+@@ -4,11 +4,113 @@ declare(strict_types=1);
+ 
+ namespace app\controllers\admin;
+ 
++use Exception;
++use RedBeanPHP\R;
++use wfm\Pagination;
++
+ /**
+  * @property \app\models\admin\User $model
+  */
+ class UserController extends AppController
+ {
++    public function indexAction()
++    {
++        $page = get('page');
++        $perpage = 10;
++        $total = R::count('user');
++        $pagination = new Pagination($page, $perpage, $total);
++        $start = $pagination->getStart();
++        $users = $this->model->get_users($start, $perpage);
++        $title = 'Список пользователей';
++        $this->setMeta("Админка::$title");
++        $this->set(compact('title', 'users', 'pagination', 'total'));
++    }
++
++    public function viewAction()
++    {
++        $id = get('id');
++        $user = $this->model->get_user($id);
++        if (!$user) {
++            throw new Exception("Not found user", 404);
++        }
++        $page = get('page');
++        $perpage = 20;
++        $total = $this->model->get_count_orders($id);
++        $pagination = new Pagination($page, $perpage, $total);
++        $start = $pagination->getStart();
++
++        $orders = $this->model->get_user_orders($start, $perpage, $id);
++
++        $title = "Профиль пользователя";
++        $this->setMeta("Админка::$title");
++        $this->set(compact('title', 'user', 'pagination', 'total', 'orders'));
++    }
++
++    public function addAction()
++    {
++        if (!empty($_POST)) {
++            $this->model->load();
++            if (
++                !$this->model->validate($this->model->attributes) ||
++                !$this->model->checkUnique("Этот email уже занят")
++            ) {
++                $this->model->getErrors();
++                $_SESSION['form_data'] = $_POST;
++            } else {
++                $password = $this->model->attributes['password'];
++                $this->model->attributes['password'] = password_hash($password, PASSWORD_DEFAULT);
++                if ($this->model->save('user')) {
++                    $_SESSION['success'] = 'Пользователь добавлен';
++                } else {
++                    $_SESSION['errors'] = 'Ошибка добавления пользователя';
++                }
++            }
++            redirect();
++        }
++        $title = "Новый пользователь";
++        $this->setMeta("Админка::$title");
++        $this->set(compact('title'));
++    }
++
++    public function editAction()
++    {
++        $id = get('id');
++        $user = $this->model->get_user($id);
++        if (!$user) {
++            throw new Exception("Not found user", 404);
++        }
++
++        if (!empty($_POST)) {
++            $this->model->load();
++
++            if (empty($this->model->attributes['password'])) {
++                unset($this->model->attributes['password']);
++            }
++
++            if (
++                !$this->model->validate($this->model->attributes) ||
++                !$this->model->checkEmail($user)
++            ) {
++                $this->model->getErrors();
++            } else {
++                if (!empty($this->model->attributes['password'])) {
++                    $password = $this->model->attributes['password'];
++                    $this->model->attributes['password'] = password_hash($password, PASSWORD_DEFAULT);
++                }
++                if ($this->model->update('user', $id)) {
++                    $_SESSION['success'] = 'Данные пользователя обновлены. Перезайдите если вы обновляли свои данные';
++                } else {
++                    $_SESSION['errors'] = 'Ошибка обновления профиля поользователя';
++                }
++            }
++            redirect();
++        }
++
++        $title = "Редактирование пользователя";
++        $this->setMeta("Админка::$title");
++        $this->set(compact('title', 'user'));
++    }
++
+     public function loginAdminAction()
+     {
+         if ($this->model::isAdmin()) {
+diff --git a/www/app/models/admin/User.php b/www/app/models/admin/User.php
+index b818085..93ab223 100644
+--- a/www/app/models/admin/User.php
++++ b/www/app/models/admin/User.php
+@@ -4,10 +4,60 @@ declare(strict_types=1);
+ 
+ namespace app\models\admin;
+ 
++use RedBeanPHP\R;
++
+ class User extends \app\models\User
+ {
++    public array $attributes = [
++        'email' => '',
++        'password' => '',
++        'name' => '',
++        'address' => '',
++        'role' => '',
++    ];
++
++    public array $rules = [
++        'required' => ['email', 'password', 'name', 'address', 'role'],
++        'email' => ['email',],
++        'lengthMin' => [
++            ['password', 6],
++        ],
++        'optional' => ['password',],
++    ];
++
++    public array $labels = [
++        'email' => 'E-mail',
++        'password' => 'Пароль',
++        'name' => 'Имя',
++        'address' => 'Адрес',
++        'role' => 'Роль',
++    ];
++
+     public static function isAdmin(): bool
+     {
+         return isset($_SESSION['user']) && $_SESSION['user']['role'] == 'admin';
+     }
++
++    public function get_users($start, $perpage): array
++    {
++        return R::findAll('user', "LIMIT $start,$perpage");
++    }
++
++    public function get_user($id): ?array
++    {
++        return R::getRow("SELECT * FROM user WHERE id = ?", [$id]);
++    }
++
++    public function checkEmail($user_data): bool
++    {
++        if ($user_data['email'] == $this->attributes['email']) {
++            return true;
++        }
++        $user = R::findOne('user', "email = ?", [$this->attributes['email']]);
++        if ($user) {
++            $this->errors['unique'][] = 'Этот email уже используется другим пользователем';
++            return false;
++        }
++        return true;
++    }
+ }
+diff --git a/www/app/views/admin/User/add.php b/www/app/views/admin/User/add.php
+index 396ffa4..1482467 100644
+--- a/www/app/views/admin/User/add.php
++++ b/www/app/views/admin/User/add.php
+@@ -8,7 +8,7 @@
+             <div class="col-md-6">
+                 <div class="form-group">
+                     <label class="required" for="email">Email</label>
+-                    <input type="email" name="email" class="form-control" id="email" value=" get_field_value('email') ">
++                    <input type="email" name="email" class="form-control" id="email" value="<?= get_field_value('email') ?>">
+                 </div>
+             </div>
+ 
+@@ -22,14 +22,14 @@
+             <div class="col-md-6">
+                 <div class="form-group">
+                     <label class="required" for="name">Имя</label>
+-                    <input type="text" name="name" class="form-control" id="name" value=" get_field_value('name') ">
++                    <input type="text" name="name" class="form-control" id="name" value="<?= get_field_value('name') ?>">
+                 </div>
+             </div>
+ 
+             <div class="col-md-6">
+                 <div class="form-group">
+                     <label class="required" for="address">Адрес</label>
+-                    <input type="text" name="address" class="form-control" id="address" value=" get_field_value('address') ">
++                    <input type="text" name="address" class="form-control" id="address" value="<?= get_field_value('address') ?>">
+                 </div>
+             </div>
+ 
+@@ -49,11 +49,11 @@
+ 
+         </form>
+ 
+-        
++        <?php
+         if (isset($_SESSION['form_data'])) {
+             unset($_SESSION['form_data']);
+         }
+-        
++        ?>
+ 
+     </div>
+ 
+diff --git a/www/app/views/admin/User/edit.php b/www/app/views/admin/User/edit.php
+index deb6ea5..71e6beb 100644
+--- a/www/app/views/admin/User/edit.php
++++ b/www/app/views/admin/User/edit.php
+@@ -8,7 +8,7 @@
+             <div class="col-md-6">
+                 <div class="form-group">
+                     <label class="required" for="email">Email</label>
+-                    <input type="email" name="email" class="form-control" id="email" value=" h($user['email']) ">
++                    <input type="email" name="email" class="form-control" id="email" value="<?= h($user['email']) ?>">
+                 </div>
+             </div>
+ 
+@@ -22,14 +22,14 @@
+             <div class="col-md-6">
+                 <div class="form-group">
+                     <label class="required" for="name">Имя</label>
+-                    <input type="text" name="name" class="form-control" id="name" value=" h($user['name']) ">
++                    <input type="text" name="name" class="form-control" id="name" value="<?= h($user['name']) ?>">
+                 </div>
+             </div>
+ 
+             <div class="col-md-6">
+                 <div class="form-group">
+                     <label class="required" for="address">Адрес</label>
+-                    <input type="text" name="address" class="form-control" id="address" value=" h($user['address']) ">
++                    <input type="text" name="address" class="form-control" id="address" value="<?= h($user['address']) ?>">
+                 </div>
+             </div>
+ 
+@@ -37,8 +37,8 @@
+                 <div class="form-group">
+                     <label class="required" for="role">Роль</label>
+                     <select name="role" id="role" class="form-control">
+-                        <option value="user"  if ($user['role'] == 'user') echo 'selected' >Пользователь</option>
+-                        <option value="admin"  if ($user['role'] == 'admin') echo 'selected' >Администратор</option>
++                        <option value="user" <?php if ($user['role'] == 'user') echo 'selected' ?>>Пользователь</option>
++                        <option value="admin" <?php if ($user['role'] == 'admin') echo 'selected' ?>>Администратор</option>
+                     </select>
+                 </div>
+             </div>
+diff --git a/www/app/views/admin/User/index.php b/www/app/views/admin/User/index.php
+index a3a34c9..aaad1dd 100644
+--- a/www/app/views/admin/User/index.php
++++ b/www/app/views/admin/User/index.php
+@@ -2,12 +2,12 @@
+ <div class="card">
+ 
+     <div class="card-header">
+-        <a href=" ADMIN /user/add" class="btn btn-default btn-flat"><i class="fas fa-plus"></i> Добавить пользователя</a>
++        <a href="<?= ADMIN ?>/user/add" class="btn btn-default btn-flat"><i class="fas fa-plus"></i> Добавить пользователя</a>
+     </div>
+ 
+     <div class="card-body">
+ 
+-         if (!empty($users)): 
++        <?php if (!empty($users)): ?>
+             <table class="table table-bordered">
+                 <thead>
+                 <tr>
+@@ -20,39 +20,39 @@
+                 </tr>
+                 </thead>
+                 <tbody>
+-                 foreach ($users as $user): 
++                <?php foreach ($users as $user): ?>
+                     <tr>
+-                        <td> $user['id'] </td>
+-                        <td> $user['email'] </td>
+-                        <td> $user['name'] </td>
+-                        <td> $user['role'] == 'user' ? 'Пользователь' : 'Администратор' </td>
++                        <td><?= $user['id'] ?></td>
++                        <td><?= $user['email'] ?></td>
++                        <td><?= $user['name'] ?></td>
++                        <td><?= $user['role'] == 'user' ? 'Пользователь' : 'Администратор' ?></td>
+                         <td>
+-                            <a class="btn btn-info btn-sm" href=" ADMIN /user/view?id= $user['id'] ">
++                            <a class="btn btn-info btn-sm" href="<?= ADMIN ?>/user/view?id=<?= $user['id'] ?>">
+                                 <i class="fas fa-eye"></i>
+                             </a>
+                         </td>
+                         <td>
+-                            <a class="btn btn-warning btn-sm" href=" ADMIN /user/edit?id= $user['id'] ">
++                            <a class="btn btn-warning btn-sm" href="<?= ADMIN ?>/user/edit?id=<?= $user['id'] ?>">
+                                 <i class="fas fa-pencil-alt"></i>
+                             </a>
+                         </td>
+                     </tr>
+-                 endforeach; 
++                <?php endforeach; ?>
+                 </tbody>
+             </table>
+ 
+             <div class="row">
+                 <div class="col-md-12">
+-                    <p> count($users)  пользователь(я/ей) из:  $total; </p>
+-                     if ($pagination->countPages > 1): 
+-                         $pagination; 
+-                     endif; 
++                    <p><?= count($users) ?> пользователь(я/ей) из: <?= $total; ?></p>
++                    <?php if ($pagination->countPages > 1): ?>
++                        <?= $pagination; ?>
++                    <?php endif; ?>
+                 </div>
+             </div>
+ 
+-         else: 
++        <?php else: ?>
+             <p>Пользователей не найдено...</p>
+-         endif; 
++        <?php endif; ?>
+ 
+     </div>
+ </div>
+diff --git a/www/app/views/admin/User/view.php b/www/app/views/admin/User/view.php
+index ea5d643..90ea181 100644
+--- a/www/app/views/admin/User/view.php
++++ b/www/app/views/admin/User/view.php
+@@ -7,32 +7,32 @@
+                 <tbody>
+                     <tr>
+                         <td>ID</td>
+-                        <td> $user['id'] </td>
++                        <td><?= $user['id'] ?></td>
+                     </tr>
+                     <tr>
+                         <td>Email</td>
+-                        <td> $user['email'] </td>
++                        <td><?= $user['email'] ?></td>
+                     </tr>
+                     <tr>
+                         <td>Имя</td>
+-                        <td> $user['name'] </td>
++                        <td><?= $user['name'] ?></td>
+                     </tr>
+                     <tr>
+                         <td>Адрес</td>
+-                        <td> $user['address'] </td>
++                        <td><?= $user['address'] ?></td>
+                     </tr>
+                     <tr>
+                         <td>Роль</td>
+-                        <td> $user['role'] == 'user' ? 'Пользователь' : 'Администратор' </td>
++                        <td><?= $user['role'] == 'user' ? 'Пользователь' : 'Администратор' ?></td>
+                     </tr>
+                 </tbody>
+             </table>
+-            <a href=" ADMIN /user/edit?id= $user['id'] " class="btn btn-flat btn-secondary">Редактировать профиль</a>
++            <a href="<?= ADMIN ?>/user/edit?id=<?= $user['id'] ?>" class="btn btn-flat btn-secondary">Редактировать профиль</a>
+         </div>
+     </div>
+ 
+     <div class="card-body">
+-         if (!empty($orders)): 
++        <?php if (!empty($orders)): ?>
+             <h3>Заказы пользователя</h3>
+             <div class="table-responsive">
+                 <table class="table table-bordered">
+@@ -47,38 +47,38 @@
+                         </tr>
+                     </thead>
+                     <tbody>
+-                         foreach ($orders as $order): 
+-                            <tr  if ($order['status']) echo 'class="table-info"' >
+-                                <td> $order['id'] </td>
++                        <?php foreach ($orders as $order): ?>
++                            <tr <?php if ($order['status']) echo 'class="table-info"' ?>>
++                                <td><?= $order['id'] ?></td>
+                                 <td>
+-                                     $order['status'] ? 'Завершен' : 'Новый' 
++                                    <?= $order['status'] ? 'Завершен' : 'Новый' ?>
+                                 </td>
+-                                <td> $order['created_at'] </td>
+-                                <td> $order['updated_at'] </td>
+-                                <td>$ $order['total'] </td>
++                                <td><?= $order['created_at'] ?></td>
++                                <td><?= $order['updated_at'] ?></td>
++                                <td>$<?= $order['total'] ?></td>
+                                 <td width="50">
+-                                    <a class="btn btn-info btn-sm" href=" ADMIN /order/edit?id= $order['id'] ">
++                                    <a class="btn btn-info btn-sm" href="<?= ADMIN ?>/order/edit?id=<?= $order['id'] ?>">
+                                         <i class="fas fa-pencil-alt"></i>
+                                     </a>
+                                 </td>
+                             </tr>
+-                         endforeach; 
++                        <?php endforeach; ?>
+                     </tbody>
+                 </table>
+             </div>
+ 
+             <div class="row">
+                 <div class="col-md-12">
+-                    <p> count($orders)  заказ(ов) из:  $total; </p>
+-                     if ($pagination->countPages > 1): 
+-                         $pagination; 
+-                     endif; 
++                    <p><?= count($orders) ?> заказ(ов) из: <?= $total; ?></p>
++                    <?php if ($pagination->countPages > 1): ?>
++                        <?= $pagination; ?>
++                    <?php endif; ?>
+                 </div>
+             </div>
+ 
+-         else: 
++        <?php else: ?>
+             <p>Пользователь пока не делал заказов...</p>
+-         endif; 
++        <?php endif; ?>
+ 
+     </div>
+ </div>
