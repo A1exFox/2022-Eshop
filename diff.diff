@@ -1,0 +1,111 @@
+diff --git a/www/app/controllers/admin/SliderController.php b/www/app/controllers/admin/SliderController.php
+new file mode 100644
+index 0000000..149e72b
+--- /dev/null
++++ b/www/app/controllers/admin/SliderController.php
+@@ -0,0 +1,24 @@
++<?php
++
++declare(strict_types=1);
++
++namespace app\controllers\admin;
++
++/** @property \app\models\admin\Slider $model */
++class SliderController extends AppController
++{
++    public function indexAction()
++    {
++        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
++            $this->model->update_slider();
++            $_SESSION['success'] = 'Слайдер обновлен';
++            redirect();
++        }
++
++        $gallery = $this->model->get_slides();
++
++        $title = "Управление слайдером";
++        $this->setMeta("Админка::$title");
++        $this->set(compact('title', 'gallery'));
++    }
++}
+diff --git a/www/app/models/admin/Slider.php b/www/app/models/admin/Slider.php
+new file mode 100644
+index 0000000..938259c
+--- /dev/null
++++ b/www/app/models/admin/Slider.php
+@@ -0,0 +1,38 @@
++<?php
++
++declare(strict_types=1);
++
++namespace app\models\admin;
++
++use RedBeanPHP\R;
++use app\models\AppModel;
++
++class Slider extends AppModel
++{
++    public function get_slides(): array
++    {
++        return R::getAssoc("SELECT * FROM slider");
++    }
++
++    public function update_slider()
++    {
++        if (!isset($_POST['gallery'])) {
++            R::exec("DELETE FROM slider");
++        }
++        if (isset($_POST['gallery']) && is_array($_POST['gallery'])) {
++            $gallery = $this->get_slides();
++            if ((count($gallery) !== count($_POST['gallery'])) ||
++                array_diff($gallery, $_POST['gallery']) ||
++                array_diff($_POST['gallery'], $gallery)
++            ) {
++                R::exec("DELETE FROM slider");
++                $sql = "INSERT INTO slider (img) VALUES ";
++                foreach ($_POST['gallery'] as $item) {
++                    $sql .= "(?),";
++                }
++                $sql = rtrim($sql, ',');
++                R::exec($sql, $_POST['gallery']);
++            }
++        }
++    }
++}
+diff --git a/www/app/views/admin/Slider/index.php b/www/app/views/admin/Slider/index.php
+index 8d0f03e..856ab40 100644
+--- a/www/app/views/admin/Slider/index.php
++++ b/www/app/views/admin/Slider/index.php
+@@ -16,17 +16,17 @@
+                                 onclick="popupGalleryImage(); return false;">Загрузить
+                             </button>
+                             <div id="gallery-img-output" class="upload-images gallery-image">
+-                                 if (!empty($gallery)): 
+-                                     foreach ($gallery as $item): 
++                                <?php if (!empty($gallery)): ?>
++                                    <?php foreach ($gallery as $item): ?>
+                                         <div class="product-img-upload">
+-                                            <img src=" $item ">
++                                            <img src="<?= $item ?>">
+                                             <input type="hidden" name="gallery[]"
+-                                                value=" $item ">
++                                                value="<?= $item ?>">
+                                             <button class="del-img btn btn-app bg-danger"><i
+                                                     class="far fa-trash-alt"></i></button>
+                                         </div>
+-                                     endforeach; 
+-                                 endif; 
++                                    <?php endforeach; ?>
++                                <?php endif; ?>
+                             </div>
+                         </div>
+                         <!-- /.card-body -->
+@@ -42,7 +42,7 @@
+ 
+ </div>
+ <!-- /.card -->
+-<script src=" PATH /adminlte/ckfinder/ckfinder.js"></script>
++<script src="<?= PATH ?>/adminlte/ckfinder/ckfinder.js"></script>
+ <script>
+     function popupGalleryImage() {
+         CKFinder.popup({
