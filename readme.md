@@ -33,6 +33,7 @@
 * [3.20.Manage.Orders](../../archive/refs/heads/3.20.Manage.Orders.zip)
 * [3.22.Manage.Users](../../archive/refs/heads/3.22.Manage.Users.zip)
 * [3.27.Manage.Pages](../../archive/refs/heads/3.27.Manage.Pages.zip)
+* [3.30.Manage.Slides](../../archive/refs/heads/3.30.Manage.Slides.zip)
 
 ***
 ### Download the Training Set
