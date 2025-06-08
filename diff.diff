@@ -1,0 +1,521 @@
+diff --git a/www/app/controllers/admin/PageController.php b/www/app/controllers/admin/PageController.php
+new file mode 100644
+index 0000000..24ef064
+--- /dev/null
++++ b/www/app/controllers/admin/PageController.php
+@@ -0,0 +1,80 @@
++<?php
++
++declare(strict_types=1);
++
++namespace app\controllers\admin;
++
++use Exception;
++use wfm\App;
++use RedBeanPHP\R;
++use wfm\Pagination;
++
++/** @property \app\models\admin\Page $model */
++class PageController extends AppController
++{
++    public function indexAction()
++    {
++        $lang = App::$app->getProperty('language');
++        $page = get('page');
++        $perpage = 10;
++        $total = R::count('page');
++        $pagination = new Pagination($page, $perpage, $total);
++        $start = $pagination->getStart();
++
++        $pages = $this->model->get_pages($lang, $start, $perpage);
++
++        $title = 'Список страниц';
++        $this->setMeta("Админка::$title");
++        $this->set(compact('title', 'pages', 'pagination', 'total'));
++    }
++
++    public function deleteAction()
++    {
++        $id = get('id');
++        if ($this->model->deletePage($id)) {
++            $_SESSION['success'] = 'Страница удалена';
++        } else {
++            $_SESSION['errors'] = 'Ошибка удаления страницы';
++        }
++        redirect();
++    }
++
++    public function addAction()
++    {
++        if (!empty($_POST)) {
++            if ($this->model->page_validate()) {
++                if ($this->model->save_page()) {
++                    $_SESSION['success'] = 'Страница добавлена';
++                } else {
++                    $_SESSION['errors'] = 'Ошибка добавления страницы';
++                }
++            }
++            redirect();
++        }
++        $title = 'Добавление страницы';
++        $this->setMeta("Админка::$title");
++        $this->set(compact('title'));
++    }
++
++    public function editAction()
++    {
++        $id = get('id');
++        if (!empty($_POST)) {
++            if ($this->model->page_validate()) {
++                if ($this->model->update_page($id)) {
++                    $_SESSION['success'] = 'Страница обновлена';
++                } else {
++                    $_SESSION['errrors'] = 'Ошибка обновления страницы';
++                }
++            }
++            redirect();
++        }
++        $page = $this->model->get_page($id);
++        if (!$page) {
++            throw new Exception("Page not found: $id");
++        }
++        $title = 'Редактирование страницы';
++        $this->setMeta("Админка::$title");
++        $this->set(compact('title', 'page'));
++    }
++}
+diff --git a/www/app/models/admin/Page.php b/www/app/models/admin/Page.php
+new file mode 100644
+index 0000000..8b03405
+--- /dev/null
++++ b/www/app/models/admin/Page.php
+@@ -0,0 +1,145 @@
++<?php
++
++declare(strict_types=1);
++
++namespace app\models\admin;
++
++use RedBeanPHP\R;
++use app\models\AppModel;
++
++class Page extends AppModel
++{
++    public function get_pages($lang, $start, $perpage): array
++    {
++        return R::getAll("SELECT p.*, pd.title 
++            FROM page p
++            JOIN page_description pd
++                ON p.id = pd.page_id
++            WHERE pd.language_id = ?
++                LIMIT $start, $perpage", [$lang['id']]);
++    }
++
++    public function deletePage($id): bool
++    {
++        R::begin();
++        try {
++            $page = R::load('page', $id);
++            if (!$page) {
++                R::rollback();
++                return false;
++            }
++            R::trash($page);
++            R::exec("DELETE FROM page_description
++                WHERE page_id = ?", [$id]);
++
++            R::commit();
++            return true;
++        } catch (\Exception $e) {
++            R::rollback();
++            return false;
++        }
++    }
++
++    public function page_validate(): bool
++    {
++        $errors = '';
++
++        foreach ($_POST['page_description'] as $lang_id => $item) {
++            $item['title'] = trim($item['title']);
++            $item['content'] = trim($item['content']);
++            if (empty($item['title'])) {
++                $errors .= "Наименование не заполненео на вкладке $lang_id<br>";
++            }
++            if (empty($item['content'])) {
++                $errors .= "Oписание не заполнено на вкладке $lang_id<br>";
++            }
++        }
++        if ($errors) {
++            $_SESSION['errors'] = $errors;
++            $_SESSION['form_data'] = $_POST;
++            return false;
++        }
++        return true;
++    }
++
++    public function save_page(): bool
++    {
++        $lang = (int)\wfm\App::$app->getProperty('language')['id'];
++        R::begin();
++        try {
++            $page = R::dispense('page');
++            $page_id = R::store($page);
++            $page->slug = AppModel::create_slug('page', 'slug', $_POST['page_description'][$lang]['title'], (int)$page_id);
++            R::store($page);
++
++            foreach ($_POST['page_description'] as $lang_id => $item) {
++                $fields = 'page_id, language_id, title, content, keywords, description';
++                $values = '?,?,?,?,?,?';
++                $data = [
++                    $page_id,
++                    $lang_id,
++                    $item['title'],
++                    $item['content'],
++                    $item['keywords'],
++                    $item['description'],
++                ];
++                R::exec(
++                    "INSERT INTO page_description ($fields)
++                    VALUES ($values)",
++                    $data
++                );
++            }
++
++            R::commit();
++            return true;
++        } catch (\Exception $e) {
++            R::rollback();
++            $_SESSION['form_data'] = $_POST;
++            return false;
++        }
++    }
++
++    public function get_page($id): array
++    {
++        return R::getAssoc("SELECT pd.language_id, pd.*, p.*
++            FROM page_description pd
++            JOIN page p
++                ON p.id = pd.page_id
++            WHERE pd.page_id = ?", [$id]);
++    }
++
++    public function update_page($id): bool
++    {
++        R::begin();
++        try {
++            $page = R::load('page', $id);
++            if (!$page) {
++                R::rollback();
++                return false;
++            }
++
++            foreach ($_POST['page_description'] as $lang_id => $item) {
++                $data = [
++                    $item['title'],
++                    $item['content'],
++                    $item['keywords'],
++                    $item['description'],
++                    $id,
++                    $lang_id,
++                ];
++                R::exec(
++                    "UPDATE page_description 
++                        SET title = ?, content = ?, keywords = ?, description = ?
++                        WHERE page_id = ?
++                            AND language_id = ?",
++                    $data
++                );
++            }
++            R::commit();
++            return true;
++        } catch (\Exception $e) {
++            R::rollback();
++            return false;
++        }
++    }
++}
+diff --git a/www/app/views/admin/Page/add.php b/www/app/views/admin/Page/add.php
+index 036f51b..1206496 100644
+--- a/www/app/views/admin/Page/add.php
++++ b/www/app/views/admin/Page/add.php
+@@ -8,43 +8,43 @@
+             <div class="card card-info card-outline card-tabs">
+                 <div class="card-header p-0 pt-1 border-bottom-0">
+                     <ul class="nav nav-tabs" id="custom-tabs-three-tab" role="tablist">
+-                         foreach (\wfm\App::$app->getProperty('languages') as $k => $lang): 
++                        <?php foreach (\wfm\App::$app->getProperty('languages') as $k => $lang): ?>
+                             <li class="nav-item">
+-                                <a class="nav-link  if ($lang['base']) echo 'active' " data-toggle="pill" href="# $k ">
+-                                    <img src=" PATH /assets/img/lang/ $k .png" alt="">
++                                <a class="nav-link <?php if ($lang['base']) echo 'active' ?>" data-toggle="pill" href="#<?= $k ?>">
++                                    <img src="<?= PATH ?>/assets/img/lang/<?= $k ?>.png" alt="">
+                                 </a>
+                             </li>
+-                         endforeach; 
++                        <?php endforeach; ?>
+                     </ul>
+                 </div>
+ 
+                 <div class="card-body">
+                     <div class="tab-content">
+-                         foreach (\wfm\App::$app->getProperty('languages') as $k => $lang): 
+-                            <div class="tab-pane fade  if ($lang['base']) echo 'active show' " id=" $k ">
++                        <?php foreach (\wfm\App::$app->getProperty('languages') as $k => $lang): ?>
++                            <div class="tab-pane fade <?php if ($lang['base']) echo 'active show' ?>" id="<?= $k ?>">
+ 
+                                 <div class="form-group">
+                                     <label class="required" for="title">Наименование страницы</label>
+-                                    <input type="text" name="page_description[ $lang['id'] ][title]" class="form-control" id="title" placeholder="Наименование страницы" value=" get_field_array_value('page_description', $lang['id'], 'title') ">
++                                    <input type="text" name="page_description[<?= $lang['id'] ?>][title]" class="form-control" id="title" placeholder="Наименование страницы" value="<?= get_field_array_value('page_description', $lang['id'], 'title') ?>">
+                                 </div>
+ 
+                                 <div class="form-group">
+                                     <label for="description">Мета-описание</label>
+-                                    <input type="text" name="page_description[ $lang['id'] ][description]" class="form-control" id="description" placeholder="Мета-описание" value=" get_field_array_value('page_description', $lang['id'], 'description') ">
++                                    <input type="text" name="page_description[<?= $lang['id'] ?>][description]" class="form-control" id="description" placeholder="Мета-описание" value="<?= get_field_array_value('page_description', $lang['id'], 'description') ?>">
+                                 </div>
+ 
+                                 <div class="form-group">
+                                     <label for="keywords">Ключевые слова</label>
+-                                    <input type="text" name="page_description[ $lang['id'] ][keywords]" class="form-control" id="keywords" placeholder="Ключевые слова" value=" get_field_array_value('page_description', $lang['id'], 'keywords') ">
++                                    <input type="text" name="page_description[<?= $lang['id'] ?>][keywords]" class="form-control" id="keywords" placeholder="Ключевые слова" value="<?= get_field_array_value('page_description', $lang['id'], 'keywords') ?>">
+                                 </div>
+ 
+                                 <div class="form-group">
+                                     <label for="content" class="required">Контент страницы</label>
+-                                    <textarea name="page_description[ $lang['id'] ][content]" class="form-control editor" id="content" rows="3" placeholder="Контент страницы"> get_field_array_value('page_description', $lang['id'], 'content') </textarea>
++                                    <textarea name="page_description[<?= $lang['id'] ?>][content]" class="form-control editor" id="content" rows="3" placeholder="Контент страницы"><?= get_field_array_value('page_description', $lang['id'], 'content') ?></textarea>
+                                 </div>
+ 
+                             </div>
+-                         endforeach; 
++                        <?php endforeach; ?>
+                     </div>
+                 </div>
+                 <!-- /.card -->
+@@ -54,26 +54,26 @@
+ 
+         </form>
+ 
+-        
++        <?php
+         if (isset($_SESSION['form_data'])) {
+             unset($_SESSION['form_data']);
+         }
+-        
++        ?>
+ 
+     </div>
+ 
+ </div>
+ <!-- /.card -->
+ 
+- if (is_file(WWW . '/adminlte/ckfinder/ckfinder.js')): 
++<?php if (is_file(WWW . '/adminlte/ckfinder/ckfinder.js')): ?>
+     <script src="https://cdn.ckeditor.com/ckeditor5/12.4.0/classic/ckeditor.js"></script>
+-    <script src=" PATH /adminlte/ckfinder/ckfinder.js"></script>
++    <script src="<?= PATH ?>/adminlte/ckfinder/ckfinder.js"></script>
+     <script type="text/javascript">
+         document.querySelectorAll('.editor').forEach((node, index) => {
+             ClassicEditor
+                 .create(node, {
+                     ckfinder: {
+-                        uploadUrl: ' PATH /adminlte/ckfinder/core/connector/php/connector.php?command=QuickUpload&type=Files&responseType=json'
++                        uploadUrl: '<?= PATH ?>/adminlte/ckfinder/core/connector/php/connector.php?command=QuickUpload&type=Files&responseType=json'
+                     },
+                     toolbar: [
+                         "undo", "redo", "|",
+@@ -88,8 +88,8 @@
+                 });
+         });
+     </script>
+- else: 
++<?php else: ?>
+     <script>
+-        console.error("File: \" PATH /adminlte/ckfinder/ckfinder.js\" not found.\nMore info in readme.md")
++        console.error("File: \"<?= PATH ?>/adminlte/ckfinder/ckfinder.js\" not found.\nMore info in readme.md")
+     </script>
+- endif; 
+\ No newline at end of file
++<?php endif; ?>
+\ No newline at end of file
+diff --git a/www/app/views/admin/Page/edit.php b/www/app/views/admin/Page/edit.php
+index bf54f2b..c397312 100644
+--- a/www/app/views/admin/Page/edit.php
++++ b/www/app/views/admin/Page/edit.php
+@@ -7,52 +7,52 @@
+             <div class="card card-info card-outline card-tabs">
+                 <div class="card-header p-0 pt-1 border-bottom-0">
+                     <ul class="nav nav-tabs" id="custom-tabs-three-tab" role="tablist">
+-                         foreach (\wfm\App::$app->getProperty('languages') as $k => $lang): 
++                        <?php foreach (\wfm\App::$app->getProperty('languages') as $k => $lang): ?>
+                             <li class="nav-item">
+-                                <a class="nav-link  if ($lang['base']) echo 'active' " data-toggle="pill"
+-                                    href="# $k ">
+-                                    <img src=" PATH /assets/img/lang/ $k .png" alt="">
++                                <a class="nav-link <?php if ($lang['base']) echo 'active' ?>" data-toggle="pill"
++                                    href="#<?= $k ?>">
++                                    <img src="<?= PATH ?>/assets/img/lang/<?= $k ?>.png" alt="">
+                                 </a>
+                             </li>
+-                         endforeach; 
++                        <?php endforeach; ?>
+                     </ul>
+                 </div>
+ 
+                 <div class="card-body">
+                     <div class="tab-content">
+-                         foreach (\wfm\App::$app->getProperty('languages') as $k => $lang): 
+-                            <div class="tab-pane fade  if ($lang['base']) echo 'active show' " id=" $k ">
++                        <?php foreach (\wfm\App::$app->getProperty('languages') as $k => $lang): ?>
++                            <div class="tab-pane fade <?php if ($lang['base']) echo 'active show' ?>" id="<?= $k ?>">
+ 
+                                 <div class="form-group">
+                                     <label class="required" for="title">Наименование страницы</label>
+-                                    <input type="text" name="page_description[ $lang['id'] ][title]"
++                                    <input type="text" name="page_description[<?= $lang['id'] ?>][title]"
+                                         class="form-control" id="title" placeholder="Наименование страницы"
+-                                        value=" h((string)$page[$lang['id']]['title']) ">
++                                        value="<?= h((string)$page[$lang['id']]['title']) ?>">
+                                 </div>
+ 
+                                 <div class="form-group">
+                                     <label for="description">Мета-описание</label>
+-                                    <input type="text" name="page_description[ $lang['id'] ][description]"
++                                    <input type="text" name="page_description[<?= $lang['id'] ?>][description]"
+                                         class="form-control" id="description" placeholder="Мета-описание"
+-                                        value=" h((string)$page[$lang['id']]['description']) ">
++                                        value="<?= h((string)$page[$lang['id']]['description']) ?>">
+                                 </div>
+ 
+                                 <div class="form-group">
+                                     <label for="keywords">Ключевые слова</label>
+-                                    <input type="text" name="page_description[ $lang['id'] ][keywords]"
++                                    <input type="text" name="page_description[<?= $lang['id'] ?>][keywords]"
+                                         class="form-control" id="keywords" placeholder="Ключевые слова"
+-                                        value=" h((string)$page[$lang['id']]['keywords']) ">
++                                        value="<?= h((string)$page[$lang['id']]['keywords']) ?>">
+                                 </div>
+ 
+                                 <div class="form-group">
+                                     <label for="content">Контент страницы</label>
+-                                    <textarea name="page_description[ $lang['id'] ][content]"
++                                    <textarea name="page_description[<?= $lang['id'] ?>][content]"
+                                         class="form-control editor" id="content" rows="3"
+-                                        placeholder="Контент страницы"> h((string)$page[$lang['id']]['content']) </textarea>
++                                        placeholder="Контент страницы"><?= h((string)$page[$lang['id']]['content']) ?></textarea>
+                                 </div>
+ 
+                             </div>
+-                         endforeach; 
++                        <?php endforeach; ?>
+                     </div>
+                 </div>
+                 <!-- /.card -->
+@@ -67,15 +67,15 @@
+ </div>
+ <!-- /.card -->
+ 
+- if (is_file(WWW . '/adminlte/ckfinder/ckfinder.js')): 
++<?php if (is_file(WWW . '/adminlte/ckfinder/ckfinder.js')): ?>
+     <script src="https://cdn.ckeditor.com/ckeditor5/12.4.0/classic/ckeditor.js"></script>
+-    <script src=" PATH /adminlte/ckfinder/ckfinder.js"></script>
++    <script src="<?= PATH ?>/adminlte/ckfinder/ckfinder.js"></script>
+     <script type="text/javascript">
+         document.querySelectorAll('.editor').forEach((node, index) => {
+             ClassicEditor
+                 .create(node, {
+                     ckfinder: {
+-                        uploadUrl: ' PATH /adminlte/ckfinder/core/connector/php/connector.php?command=QuickUpload&type=Files&responseType=json'
++                        uploadUrl: '<?= PATH ?>/adminlte/ckfinder/core/connector/php/connector.php?command=QuickUpload&type=Files&responseType=json'
+                     },
+                     toolbar: [
+                         "undo", "redo", "|",
+@@ -90,8 +90,8 @@
+                 });
+         });
+     </script>
+- else: 
++<?php else: ?>
+     <script>
+-        console.error("File: \" PATH /adminlte/ckfinder/ckfinder.js\" not found.\nMore info in readme.md")
++        console.error("File: \"<?= PATH ?>/adminlte/ckfinder/ckfinder.js\" not found.\nMore info in readme.md")
+     </script>
+- endif; 
+\ No newline at end of file
++<?php endif; ?>
+\ No newline at end of file
+diff --git a/www/app/views/admin/Page/index.php b/www/app/views/admin/Page/index.php
+index 7d9d1a2..afde98a 100644
+--- a/www/app/views/admin/Page/index.php
++++ b/www/app/views/admin/Page/index.php
+@@ -2,12 +2,12 @@
+ <div class="card">
+ 
+     <div class="card-header">
+-        <a href=" ADMIN /page/add" class="btn btn-default btn-flat"><i class="fas fa-plus"></i> Добавить страницу</a>
++        <a href="<?= ADMIN ?>/page/add" class="btn btn-default btn-flat"><i class="fas fa-plus"></i> Добавить страницу</a>
+     </div>
+ 
+     <div class="card-body">
+ 
+-         if (!empty($pages)): 
++        <?php if (!empty($pages)): ?>
+             <div class="table-responsive">
+                 <table class="table table-bordered">
+                     <thead>
+@@ -19,41 +19,41 @@
+                         </tr>
+                     </thead>
+                     <tbody>
+-                         foreach ($pages as $page): 
++                        <?php foreach ($pages as $page): ?>
+                             <tr>
+-                                <td> $page['id'] </td>
++                                <td><?= $page['id'] ?></td>
+                                 <td>
+-                                     $page['title'] 
++                                    <?= $page['title'] ?>
+                                 </td>
+                                 <td width="50">
+                                     <a class="btn btn-info btn-sm"
+-                                        href=" ADMIN /page/edit?id= $page['id'] "><i
++                                        href="<?= ADMIN ?>/page/edit?id=<?= $page['id'] ?>"><i
+                                             class="fas fa-pencil-alt"></i></a>
+                                 </td>
+                                 <td width="50">
+                                     <a class="btn btn-danger btn-sm delete"
+-                                        href=" ADMIN /page/delete?id= $page['id'] ">
++                                        href="<?= ADMIN ?>/page/delete?id=<?= $page['id'] ?>">
+                                         <i class="far fa-trash-alt"></i>
+                                     </a>
+                                 </td>
+                             </tr>
+-                         endforeach; 
++                        <?php endforeach; ?>
+                     </tbody>
+                 </table>
+             </div>
+ 
+             <div class="row">
+                 <div class="col-md-12">
+-                    <p> count($pages)  страниц(а) из:  $total; </p>
+-                     if ($pagination->countPages > 1): 
+-                         $pagination; 
+-                     endif; 
++                    <p><?= count($pages) ?> страниц(а) из: <?= $total; ?></p>
++                    <?php if ($pagination->countPages > 1): ?>
++                        <?= $pagination; ?>
++                    <?php endif; ?>
+                 </div>
+             </div>
+ 
+-         else: 
++        <?php else: ?>
+             <p>Страниц не найдено...</p>
+-         endif; 
++        <?php endif; ?>
+ 
+     </div>
+ </div>
