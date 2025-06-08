@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace app\controllers\admin;
 
+use Exception;
 use wfm\App;
 use RedBeanPHP\R;
 use wfm\Pagination;
@@ -49,10 +50,31 @@ class PageController extends AppController
                 }
             }
             redirect();
-            // debug($_POST, true);
         }
         $title = 'Добавление страницы';
         $this->setMeta("Админка::$title");
         $this->set(compact('title'));
+    }
+
+    public function editAction()
+    {
+        $id = get('id');
+        if (!empty($_POST)) {
+            if ($this->model->page_validate()) {
+                if ($this->model->update_page($id)) {
+                    $_SESSION['success'] = 'Страница обновлена';
+                } else {
+                    $_SESSION['errrors'] = 'Ошибка обновления страницы';
+                }
+            }
+            redirect();
+        }
+        $page = $this->model->get_page($id);
+        if (!$page) {
+            throw new Exception("Page not found: $id");
+        }
+        $title = 'Редактирование страницы';
+        $this->setMeta("Админка::$title");
+        $this->set(compact('title', 'page'));
     }
 }

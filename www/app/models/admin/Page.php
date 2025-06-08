@@ -98,4 +98,48 @@ class Page extends AppModel
             return false;
         }
     }
+
+    public function get_page($id): array
+    {
+        return R::getAssoc("SELECT pd.language_id, pd.*, p.*
+            FROM page_description pd
+            JOIN page p
+                ON p.id = pd.page_id
+            WHERE pd.page_id = ?", [$id]);
+    }
+
+    public function update_page($id): bool
+    {
+        R::begin();
+        try {
+            $page = R::load('page', $id);
+            if (!$page) {
+                R::rollback();
+                return false;
+            }
+
+            foreach ($_POST['page_description'] as $lang_id => $item) {
+                $data = [
+                    $item['title'],
+                    $item['content'],
+                    $item['keywords'],
+                    $item['description'],
+                    $id,
+                    $lang_id,
+                ];
+                R::exec(
+                    "UPDATE page_description 
+                        SET title = ?, content = ?, keywords = ?, description = ?
+                        WHERE page_id = ?
+                            AND language_id = ?",
+                    $data
+                );
+            }
+            R::commit();
+            return true;
+        } catch (\Exception $e) {
+            R::rollback();
+            return false;
+        }
+    }
 }

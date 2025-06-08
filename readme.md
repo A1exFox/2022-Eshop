@@ -32,6 +32,7 @@
 * [3.17.Manage.Downloads](../../archive/refs/heads/3.17.Manage.Downloads.zip)
 * [3.20.Manage.Orders](../../archive/refs/heads/3.20.Manage.Orders.zip)
 * [3.22.Manage.Users](../../archive/refs/heads/3.22.Manage.Users.zip)
+* [3.27.Manage.Pages](../../archive/refs/heads/3.27.Manage.Pages.zip)
 
 ***
 ### Download the Training Set
